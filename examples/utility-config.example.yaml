@@ -1,0 +1,29 @@
+# Illustrative schema only; final parser/format is an open decision.
+version: 1
+
+defaults:
+  selector: fzf
+  home_session: auto
+  on_exit: shell
+  scope: shared
+  metadata_dir: "${XDG_STATE_HOME:-$HOME/.local/state}/tum"
+
+utilities:
+  logs:
+    command: tail
+    args: ["-F", "/var/log/syslog"]
+    scope: shared
+    home_session: auto
+    on_exit: shell
+    borrowed_background: "#263238"
+
+  project-files:
+    command: lf
+    args: []
+    scope: window
+    home_session: auto
+    working_directory: current-window
+    split_argument:
+      prompt: "Directory"
+      default: "."
+    on_exit: wait
