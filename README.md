@@ -1,34 +1,29 @@
-# tmux utility manager
+# tmux-utility-manager
 
-A documentation-first project scaffold for managing long-running terminal utilities as movable tmux resources.
+A design and implementation specification for managing long-running terminal utilities under tmux.
 
-**Working project name:** `tmux-utility-manager`  
-**Working command name:** `tum`  
-Both names are provisional.
+## Core model
 
-The project is not a replacement for tmux. It adds a small management layer for utility identity, home locations, borrowing/returning, argument handling, saved borrowed-only layouts, and interactive selection.
+A **definition** describes a utility; an **instance** is one running copy. Each instance has a managed home session/window and one live tmux pane.
 
-## Project principles
+Borrowing moves a pane. A pane exists in one tmux window at a time.
 
-- Small, composable Unix-style programs; no monolithic controller.
+- Small, composable Unix-style programs.
 - Bash-first implementation, with short Perl helpers where they materially simplify parsing or data handling.
 - tmux remains responsible for panes, windows, sessions, splitting, sizing, focus, and terminal presentation.
 - Registered utilities and ad hoc utilities are both first-class.
 - Ad hoc does not mean disposable: an ad hoc utility can be assigned to a session and managed just like a registered utility.
-- Interactive management is a core feature, not an optional convenience.
+- Interactive management is a core feature.
 - Never overwrite, save, restore, or destroy ordinary working panes when saving or restoring a borrowed-only layout.
-- No dependency on tmuxake. Its useful architectural ideas and isolated code may be studied, but its one-extra-pane model is not the design foundation.
 
-## Documentation
+## Documents
 
-- [Requirements](docs/requirements.md)
-- [Architecture and component boundaries](docs/architecture.md)
-- [User guide](docs/user-guide.md)
-- [20 use cases](docs/use-cases.md)
-- [tmux feature mapping](docs/tmux-feature-map.md)
-- [Plugin analysis](docs/plugin-analysis.md)
-- [Project plan and open decisions](docs/project-plan.md)
+- `requirements/`: behavior, lifecycle, layouts, arguments, terminology, use cases.
+- `architecture/`: tmux model, ownership, process boundaries, failure recovery.
+- `metadata/`: persistent schema, transactions, locking, migration.
+- `commands/`: CLI and popup interaction contracts.
+- `user-guide/`: user workflows.
+- `development/`: staged plan, tests, AI implementation contract.
+- `research/`: related projects and plugin analysis.
+- `ideas/`: 200 optional improvements.
 
-## Status
-
-This is a requirements and design baseline, not an implementation. Command names and configuration syntax are illustrative until validated by a prototype.

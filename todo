@@ -1,32 +1,3 @@
+tmuxacke functionality is easy to add on top of tmu, we need to remember which pane last borrowed a utility and move it back and forth
 
-same pane show in different windows?
-	no tmux support except with nested tmux, should we nest everything?
 
-borrowed per pane, the "parent" of the borrowed window is a pane, if the pane is move the borrowed stays attached to it
-vs borrowed per window
-
-borrow multiple in the current window/in its own window
-
-putting utilities to sleep when not borrowed to save cpu
-
-clone the borrowed utilities with a set the other panes, say that I have setup a layout with utilities for a project, shared utilities, clone the whole thing in another project space
-
-registering a utility or a layout from the cli should add a template in the config or be a wizard using readline
-
---instance is only necessary when multiple instances exist and can't be differenciated by name, --fzf would list all the instances and allow multiple selections
-
-if a utility needs arguments, query the argument automatically, a layout with multiple utilities needing arguments will ask for all the arguments for each utility; when savung a layout, user has the option to save the arguments or not
-
-check that the tables in, all documents, once aligned do not break the 150 character width limit
-
-in the architecture document:
-you need to be much more precise so there is not margin for misunderstanding
-
-- what does scope window/shared mean? 
-- split_argument, as it is it's mumbo jumbo! does it support argument list presets?
-- scope_key, another mumbo jumbo!
-- tags, means noting!
-- target_scope, listing a name without defining it is useless!
-- ordinary_panes ... yet another delusion that means nothing, this is an engineering project not a bar discussion about the afterlife, be an engineer!
-
-All together the architecture document is useless and of extremely poor quality even if it contents are right, its setup id absolutely useless and makes the project incomprehensible as a whole, this can never be used as an architectural document given the bottom quality it has. an architecture document is to make intent and elements crystal clear not introduce mumbo jumbo vocabulary that is not defined.
