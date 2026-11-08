@@ -8,7 +8,9 @@
 
 ## Why a keymap at all
 
-Typing `tum borrow --fzf` is fine for a script and fine for a command you run twice a day. It is not fine for the verb you hit forty times a session. The interaction-design doc already names the right primitive — one popup (`tum popup`) that delegates to the same CLI commands scripts use — and the `200-improvements` backlog explicitly lists "one compact popup entry point" (#101), "fzf searchable selector" (#102), "make cancellation side-effect free" (#116), and "align popup actions with CLI" (#120) as goals.
+Typing `tum borrow --fzf` is fine for a script and fine for a command you run twice a day. It is not fine for the verb you hit forty times a session. The cost stacks: you reach for the prefix habit, then you type a word, then you pick from a list — when the *intent* ("bring my logs over here") is a single reflex. The interaction-design doc already names the right primitive — one popup (`tum popup`) that delegates to the same CLI commands scripts use — and the `200-improvements` backlog explicitly lists "one compact popup entry point" (#101), "fzf searchable selector" (#102), "make cancellation side-effect free" (#116), and "align popup actions with CLI" (#120) as goals.
+
+This keymap extends that primitive the way vim extends the `:` command-line with leader keys: **the popup remains the single conceptual entry point, and the most-used actions also get direct, grouped shortcuts that call the exact same CLI commands underneath.** Nothing here is a parallel API. Every binding is `tum <command> <flags>` under the hood, so the scripting guide and the keymap can never drift apart.
 
 The design goals, in priority order:
 
@@ -24,13 +26,14 @@ The design goals, in priority order:
 
 The interaction-design doc currently says: *"Keep tmux key bindings minimal: one configurable binding opens the popup. Do not bind every action separately."* That guidance was written to stop the tool from competing with tmux's own navigation, resize, zoom, and copy-mode keys — a real risk. This keymap preserves the *spirit* of that rule while relaxing its *letter*:
 
-| Existing rule                                | This keymap's stance                                                                                             |
-| ---                                          | ---                                                                                                              |
-| One popup entry point (#101)                 | `t u` opens the full popup; it remains the single conceptual entry.                                              |
-| Each action delegates to the same CLI (#120) | Every binding shells out to `tum …`.                                                                             |
-| fzf primary, numbered fallback (#102, #104)  | fzf is the picker inside every interactive binding; numbered selection is the fallback.                          |
-| Cancel is side-effect free (#116)            | `Esc`/`q` aborts from any point.                                                                                 |
-| Collect prompts before mutation              | Prompting bindings run inside a popup with a TTY; nothing in tmux moves until all required values are collected. |
+| Existing rule                                | This keymap's stance                                                                                                   |
+| ---                                          | ---                                                                                                                    |
+| One popup entry point (#101)                 | Kept. `t u` opens the full popup; it remains the single conceptual entry.                                              |
+| Don't bind every action separately           | Relaxed for high-frequency verbs; rest in popup. Shortcuts under `t`, clear of tmux.                                   |
+| Each action delegates to the same CLI (#120) | Kept and made literal — every binding shells out to `tum …`.                                                           |
+| fzf primary, numbered fallback (#102, #104)  | Kept. fzf is the picker inside every interactive binding; numbered selection is the fallback.                          |
+| Cancel is side-effect free (#116)            | Kept. `Esc`/`q` aborts from any point.                                                                                 |
+| Collect prompts before mutation              | Kept. Prompting bindings run inside a popup with a TTY; nothing in tmux moves until all required values are collected. |
 
 The net effect is the popup-plus-CLI design you already have, with a vim-style fast path layered on. If you only ever learn `t u`, you lose nothing; if you learn the leaders, the daily verbs collapse to three keystrokes.
 
@@ -40,7 +43,7 @@ The net effect is the popup-plus-CLI design you already have, with a vim-style f
 
 These five rules generate the whole keymap. Once you internalize them, you can derive any binding without looking it up.
 
-1. **The `t` leader scopes everything into tmux-borrow's namespace.** After your tmux prefix, `t` enters "tum mode." Every subsequent key is read from tum's own key-tables.
+1. **The `t` leader scopes everything into tmux-borrow's namespace.** After your tmux prefix, `t` enters "tum mode." Every subsequent key is read from tum's own key-tables, so none of these bindings can collide with tmux's `b`/`c`/`n`/`s`/`w`/`0-9` defaults. This is the single decision that buys the rest of the design freedom.
 2. **Single key = common verb; `<group> <action>` = family.** The five things you do constantly (`borrow`, `return`, `stop`, `run`, `popup`) are single keys right after the leader. Everything that manages nouns (`layout`, `define`, `config`) is a two-key chord: group leader, then action.
 3. **Uppercase = stronger / broader variant.** Directly borrowed from vim (`w`/`W`, `e`/`E`): `b` borrows a pane, `B` borrows a whole window; `r` returns one, `R` returns all; `s` stops with confirmation, `S` force-stops; `l` lists concisely, `L` lists verbose. Capital always means "more."
 4. **Mnemonics mirror the CLI verbs.** `b`orrow, `r`eturn, `s`top, `n`ew/run, `l`ayout, `d`efine, `c`onfig, `g`o (view/list), `a`ppearance, `D`octor, `i`nspect, `p`ane, `u` (popup, the universe). Where the CLI has a name, the key is its first letter.
@@ -82,7 +85,6 @@ Every binding, in one view. "Leaf" = fires immediately after the leader; "Group"
 | ---     | ---   | ---                                             | ---                            | ---                                         | ---                                |
 | `t b`   | Leaf  | Borrow a pane (default mode)                    | `tum borrow --fzf`             | fzf over borrowable instances               | 21, 24, 34, 38, 102, 105, 106, 117 |
 | `t B`   | Leaf  | Borrow a whole managed window                   | `tum borrow --fzf --as window` | fzf; window-mode                            | 33                                 |
-
 | `t r`   | Leaf  | Return (active, or pick if ambiguous)           | `tum return --fzf`             | fzf over borrowed                           | 25, 26, 102                        |
 | `t R`   | Leaf  | Return all borrowed (in scope)                  | `tum return --all --yes`       | none (batch)                                | 25, 115                            |
 | `t s`   | Leaf  | Stop an instance (confirms)                     | `tum stop --fzf`               | fzf; confirm                                | 95, 134                            |
@@ -99,41 +101,13 @@ Every binding, in one view. "Leaf" = fires immediately after the leader; "Group"
 | `t g`   | Group | Go / view (listings)                            | —                              | —                                           | 1, 2, 9, 10, 111, 114              |
 | `t a`   | Group | Appearance (color)                              | —                              | —                                           | use-case 19, FR-025                |
 | `t D`   | Group | Doctor / recovery                               | —                              | —                                           | 29, 125–140, 151                   |
+| `t m`*  | Group | Quick-borrow (combinatorial: what/where)        | `tum quick-borrow`             | none                                        | 21, 24, 34                         |
 | `t q`   | Leaf  | Cancel (back to root)                           | —                              | —                                           | 116                                |
 | `t Esc` | Leaf  | Cancel (back to root)                           | —                              | —                                           | 116                                |
 
+*\* `t m` is the quick-borrow leader. `m` is unbound in `tum-root`, so there is no conflict with the cheatsheet (`t ?`) or any other key. See "Quick borrow for common cases".*
+
 > A note on verbs: the canonical command index uses `run`/`stop`/`popup`. Earlier drafts used `launch`/`kill`/`ui`. The bindings follow the canonical verbs; the popup (`t u`) keeps the `u` mnemonic from the earlier `ui` draft because it reads as "universe" (everything) and is already the key the example `tmux.conf` ships with.
-
----
-
-we need a quick borrow key for the common cases, they can use nested key maps:
-	key: ?
-	
-	what to borrow (pane vs window) -> t? + what + where + utility
-		what:
-			P -> pane
-			W -> window
-
-	where to borrow -> t? + where + utility
-		where:
-			t? + l (left for pane, before current window for window)
-			t? + r (right ...)
-			...
-
-	what utility to borrow: utilities
-		numbered:
-			t1, t2, ... user configured
-			letters: fuzy search
-			tab: completion
-			F: fzf to pick
-
-	what and were have default if not set.
-
-	Examples:
-		t?1    : utility 1 in pane on right side
-		t?r    : utility that starts with r in name, in pane on right side
-		t?Prr  : utility that starts with r in name, in pane on right side
-		t?Wr1  : utility that starts with r in name, in window on right side
 
 ---
 
@@ -239,7 +213,7 @@ C-b t n          # fzf: pick "psql" → prompt "Database / connection profile" �
 
 ```
 C-b t c e        # opens config in $EDITOR → set [defaults] on_exit = "wait" → save
-C-b t c r        # reload; new policy applies to the next launch * no reason why it can't apply now! *
+C-b t c r        # reload; new policy applies to the next launch
 ```
 
 ### Go / view family — `t g …`
@@ -254,8 +228,6 @@ Read-only listings. `g` for "go look." Uppercase `L` is the verbose/tree variant
 | `t g s` | List home sessions the manager knows about                        | `tum list sessions`    |
 | `t g p` | List panes (managed vs. ordinary distinguished)                   | `tum list panes`       |
 | `t g t` | Tree view of sessions/windows/instances                           | `tum list --tree`      |
-
-* missing filtered example ! *
 
 **Worked example — find what's borrowed where, fast.** Before a deploy you want to see everything currently out on loan:
 
@@ -437,8 +409,26 @@ go = "g"
 appearance = "a"
 doctor = "D"
 
+# Quick-borrow leader (m is unbound in tum-root — see "Quick borrow").
+# Empty = disabled.
+quick_borrow = "m"
+
 # Any action omitted here keeps its default; any key left unbound
 # falls through to the popup (t u). Rebinding is always non-destructive.
+
+# Quick-borrow: combinatorial grammar t m [what][where] utility.
+# Only the numbered utilities and the what/where defaults are configured
+# here; fuzzy-letter, Tab, and F (fzf) modes resolve at runtime.
+[quick-borrow]
+leader        = "m"     # t m  ->  hand the rest to `tum quick-borrow`
+default_what  = "pane"  # when 'what' (P/W) is omitted
+default_where = "right" # pane: split right; window: after current
+
+[quick-borrow.utilities]
+1 = "files"
+2 = "logs"
+3 = "lazygit"
+4 = { utility = "repl", preset = "project" }
 ```
 
 ### tmux config (`~/.tmux.conf`)
@@ -567,6 +557,74 @@ bind-key -T prefix r display-popup -E 'tum return --fzf' \; switch-client -T roo
 
 **Collision warning:** `b` is not a tmux default (safe), but `r`/`s`/`n` may be bound in some configs or plugins. The installer will refuse to promote a key that's already bound in your `prefix` table, and will report which key blocked it, rather than silently shadowing an existing binding.
 
+### Quick borrow for common cases (nested key map, leader `m`)
+
+`t b` opens the fzf picker over every borrowable instance — the right default for the general case, but a step you don't need for the two or three utilities you reach for all day. You already know which one you want; you just want it beside you, now. Quick-borrow is the fast path for that.
+
+**The grammar.** Quick-borrow is a single combinatorial entry under one leader key, not a flat list of shortcuts. After `t m` you type a short sequence that picks three things in order — what to borrow into, where to put it, and which utility — and any part you omit takes a default:
+
+```
+t m  [what] [where] utility
+      |      |      └─ 1-9 (numbered), letters (fuzzy), Tab (complete), F (fzf)
+      |      └ l (left) | r (right) | ... (more directions)
+      └─ P (pane), W (window)
+```
+
+- **what** — `P` borrows into a pane (a split of the current pane); `W` borrows into a window (a new window in the current session). Omitting it defaults to **pane** (from `t m 1` and `t m r`, which land in a pane).
+- **where** — `l` places the new pane to the left (or, for a window, inserts it before the current one); `r` places it to the right (or after the current window). The `...` in the requirement leaves room for more directions (up/down, far-left/far-right). Omitting `where` defaults contextually: a pane splits to the right of the current pane; a window is inserted after the current window.
+- **utility** — required; four ways to name it: a digit `1`–`9` for a user-configured shortcut; one or more letters for a fuzzy match on the utility name; `Tab` to complete from what you've typed; `F` to drop into the fzf picker over all utilities.
+
+The `what` default is **pane**; the `where` default is **right** for a pane and **after the current window** for a window — both confirmed by the user.
+
+**The examples.** All four resolve cleanly under the grammar with leader `m`. `t m Wr1` confirms the user's reading: the trailing `1` is the numbered utility, not a fuzzy letter.
+
+| Input     | Parsed as                                  | Meaning                                                  |
+| ---       | ---                                        | ---                                                      |
+| `t m 1`   | utility 1; pane (default); right (default) | utility 1 in a pane on the right                         |
+| `t m r`   | fuzzy `r`; pane (default); right (default) | utility whose name starts with r, in a pane on the right |
+| `t m Prr` | `P` + `r` + utility `r`                    | utility starting with r, pane on the right               |
+| `t m Wr1` | `W` + `r` + utility 1                      | utility 1 in a window after the current window           |
+
+
+**Disambiguation (open).** Because `where` and `utility` can both be lowercase letters, the parser needs a rule for telling them apart. The examples imply: a lone trailing letter is the utility (so `t m r` is utility-r, with where defaulted); an extra letter after an explicit `what` is consumed as `where` first, the rest as utility (so `t m Prr` is P + right + utility-r). The consequence is that you can't express "where only, utility-by-a-where-letter" without writing both — to borrow a utility whose name starts with `l` into a left pane you must write `t m Pll` (`P` + `l`=left + `l`=utility), because `t m Pl` alone reads `l` as the utility. Whether that is acceptable, or the grammar should grow a separator, is a Phase 0 decision.
+
+**Configuration.** Only the numbered utilities and the defaults are user-configured; the fuzzy, Tab, and F modes resolve against the registered utilities at runtime:
+
+```toml
+[quick-borrow]
+leader          = "m"    # the t m group leader
+default_what    = "pane" # when 'what' (P/W) is omitted
+default_where   = "right"# pane: split right of current; window: after current
+
+[quick-borrow.utilities]
+# digit = utility (+ optional preset). The digit is what you type last.
+1 = "files"
+2 = "logs"
+3 = "lazygit"
+4 = { utility = "repl", preset = "project" }
+```
+
+**Implementation note.** The numbered and single-letter cases are fixed-length, but fuzzy letters are variable-length and `Tab`/`F` are interactive, so the sub-table can't be a flat set of static leaves. The realistic shape is two-stage: `t m` routes into a small `tum quick-borrow` helper (via `run-shell`) that reads the typed sequence and resolves it — applying the what/where defaults, matching the utility (numbered → config, letters → fuzzy, `Tab` → complete, `F` → fzf), then issuing `tum borrow` (or `tum run --borrow` if no instance exists yet). The pure-tmux key-table handles only the leader and the cancel keys; the combinatorics live in the helper. This keeps "quick" honest: `t m 1` and `t m r` still complete in one short sequence with no picker, while fuzzy and fzf remain available inside the same grammar for the cases a number can't cover.
+
+```sh
+# Quick-borrow leader: t m  ->  hand the rest of the sequence to the helper.
+bind-key -T tum-root 'm' run-shell -b 'tum quick-borrow'
+
+# Cancel stays in the key-table so it's instant.
+bind-key -T tum-root q       switch-client -T root
+bind-key -T tum-root Escape  switch-client -T root
+```
+
+**Leader: `m`.** The `?` in the requirement was a placeholder, and `?` is already the cheatsheet leaf. The user proposed `m` if free; it is — `m` is unbound in `tum-root` (bound root keys are `b B r R s S n N i p u ? q l d c g a D`), so there is no conflict and no other key needs to move. The mnemonic is loose: `m` for "mine"/"me" — bring this utility *to me*, beside the current pane. If a stronger mnemonic is wanted later, `m` can be reassigned with one config line, since quick-borrow is generated from `config.toml`.
+
+**Relationship to the existing keys.** Quick-borrow does not replace anything; it layers on top:
+
+- `t b` stays the general interactive borrow (fzf over all instances). Quick-borrow is a faster path *to* a named utility, with its own fuzzy/fzf fallbacks — not a replacement for the global picker.
+- `t n` starts a new registered instance. Quick-borrow *borrows* an existing one, starting one only as a fallback. They compose: `t n` to create, `t m 1` to grab it fast thereafter.
+- `t u` (popup) remains the catch-all for anything the grammar doesn't cover.
+
+**Tradeoffs.** Quick-borrow is a power-user opt-in. Its cost is a configurable layer (the numbered utilities and defaults) plus a small helper to parse the sequence, and the usual risk that a chosen mnemonic collides with a future core binding. The installer mitigates collisions: it refuses a `[quick-borrow]` leader or utility digit already bound in `tum-root`. The benefit is collapsing the highest-frequency action — "borrow my file manager" — to three or four keystrokes with no picker (`t m 1`), while keeping fuzzy and fzf reachable inside the same grammar for the long tail.
+
 ---
 
 ## How this maps to the `200-improvements` base
@@ -629,4 +687,7 @@ This keymap is a proposed design, built on the existing specs and the `200-impro
 | The `tum bindings tmux` generator and `tum bindings install`                           | Phase 9 (UI) or Phase 1 (skeleton), depending on whether bindings ship before the popup |
 | Per-binding result feedback (`display-message` on `run-shell` actions)                 | Phase 9                                                                                 |
 | Whether to ship the optional direct fast tier at all                                   | Phase 10 (lifecycle/release), gated on user testing                                     |
+| Quick-borrow: finalize where-set (`l`/`r`/…) + letter disambiguation rule              | Phase 0; opt-in, see "Quick borrow"                                                     |
+
+The principle behind every open item is the same: the keymap must stay a thin wrapper over the CLI, generated from one config, never colliding with tmux, and always cancellable. As long as those hold, the exact key choices are tunable without redesign.
 

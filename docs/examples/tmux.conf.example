@@ -1,8 +1,0 @@
-# Illustrative only. Final command and options are not yet fixed.
-# Keep the key map deliberately small.
-#
-# set -g @tum-popup-key 'u'
-# bind-key u display-popup -E -w 80% -h 80% 'tum ui'
-#
-# Optional direct return view, if user testing proves it valuable:
-# bind-key U display-popup -E -w 70% -h 70% 'tum ui return'
