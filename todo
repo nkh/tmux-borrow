@@ -1,3 +1,13 @@
-tmuxacke functionality is easy to add on top of tmu, we need to remember which pane last borrowed a utility and move it back and forth
+tmuxake functionality is easy to add on top of tmu, we need to remember which pane last borrowed a utility and move it back and forth
 
+borrowing a non-running utility starts it
 
+borrow a borrowed utility is possible, it's unborrowed and borrowed
+	the utility has a history, returning it returns it to one step back in its history
+	it's possible to borrow without updating the history, as well as returning anywhere in the history, including home which is at position 0
+
+borrow a utility in place of a borrowed utility
+	with history
+
+borrow utility in place of a non managed window
+	non managed window becomes a flip flop
