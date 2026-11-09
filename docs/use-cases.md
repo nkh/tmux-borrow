@@ -15,7 +15,7 @@ Each scenario lists the **setup** (what exists beforehand), the **action** (what
 **Action.**
 1. `tum borrow dev` — the three members attach beside the host at their declared positions, each with its own slot; the layout group gets a slot too.
 2. Focus the `logs` pane. Press the close key.
-3. `tum borrow --new logs` (or `tum borrow logs` if no other `logs` instance is hidden).
+3. `tum new logs` (or `tum borrow logs` if no other `logs` instance is hidden).
 
 **Expected result.** After step 2, `logs` is gone; `editor` and `term` continue, their `@tum-layout` unchanged. After step 3, a fresh `logs` instance attaches; it carries the same `@tum-layout` id, so it is part of the same group for group flip-flop.
 
@@ -49,10 +49,10 @@ Each scenario lists the **setup** (what exists beforehand), the **action** (what
 
 **Action.**
 1. `tum borrow ranger` — the chooser opens (two instances match); pick one.
-2. `tum borrow --new ranger` — a third instance is created and borrowed.
-3. `tum borrow --existing ranger` — the chooser opens over the two remaining hidden instances; if none were hidden, it errors.
+2. `tum new ranger` — a third instance is created and borrowed.
+3. `tum borrow ranger` again — the chooser opens over the two remaining hidden instances; if none were hidden, a fresh one is created (there is no "only-existing" mode).
 
-**Expected result.** Each mode behaves as specified. The host binding is set on the borrowed pane in all three cases.
+**Expected result.** `borrow` reuses an existing hidden instance (chooser when several); `new` always creates. The host binding is set on the borrowed pane in both cases.
 
 **Requirements.** Borrowing (modes, resolution order); Host binding.
 
@@ -125,15 +125,15 @@ Each scenario lists the **setup** (what exists beforehand), the **action** (what
 
 **Requirements.** Orphan handling; Listings; Borrowing (resolution order).
 
-## 11. Borrow by tag
+## 11. Borrow a group of utilities (chooser over all)
 
-**Setup.** Utilities `htop`, `nload`, `iftop` are all tagged `monitor`. Several instances of each may be hidden.
+**Setup.** Utilities `htop`, `nload`, `iftop` are defined. Several instances of each may be hidden.
 
-**Action.** `tum borrow --tag monitor`.
+**Action.** `tum borrow` (no name); fuzzy-filter the chooser on "monitor".
 
-**Expected result.** The chooser lists all hidden instances tagged `monitor`. Picking one borrows it. If none are hidden, the chooser lists the definitions (uninstantiated) and picking one creates and borrows.
+**Expected result.** The chooser lists every utility and layout (in the fzf reference, the user filters by typing). Picking a hidden instance borrows it; picking an uninstantiated one creates and borrows. There is no `--tag` flag — the chooser's own fuzzy filter covers "borrow by category."
 
-**Requirements.** Borrowing (by tag, no-name); Definitions (tags); State representation (`@tum-tags`).
+**Requirements.** Borrowing (no-name mode); Chooser.
 
 ## 12. Borrow with no name (chooser over all)
 

@@ -4,7 +4,7 @@
 
 > **Scope.** This audit lists every command, flag, positional, tmux option, and definition key that makes up tmux-borrow's configuration surface, then proposes how to reduce it. The goal is the smallest surface that still meets the real use cases — fewer flags to parse, fewer options to document, fewer code paths to test. Reduction is approached three ways, as requested: dropping requirements that do not earn their complexity, splitting overloaded flags into dedicated commands, and factoring shared logic (target resolution, the chooser) out of the commands that repeat it.
 >
-> This document is a proposal record. Several reductions have since been adopted into the requirements: `on_exit` was dropped; `tum flip`, `tum close`, `tum popup`, `tum cheatsheet`, `tum bindings tmux`, and `tum prompt` were added as requirements-explicit commands; the layout DSL was unified to the flat, no-hierarchy form (no `members:` key); and `tum status`'s `--pane`/`--prompt` flags were split into `tum status [<pane_id>]` and `tum prompt`. Tables 1–3 below reflect the current requirements; the Reduction sections, the before/after comparison, and the proposed minimal surface record the original proposals and note which were adopted. Where a reduction has not been adopted (for example flip-flop's three variants), the conflict is called out and the decision is left to the implementation freeze.
+> This document is a proposal record. All six reductions have now been adopted into the requirements: `on_exit` was dropped; `tum flip`, `tum close`, `tum popup`, `tum cheatsheet`, `tum bindings tmux`, and `tum prompt` were added as requirements-explicit commands; the layout DSL was unified to the flat, no-hierarchy form (no `members:` key); `tum status`'s `--pane`/`--prompt` flags were split into `tum status [<pane_id>]` and `tum prompt`; `tum borrow`'s flags were split into `tum borrow` (flag-free) and `tum new`, with the chooser made implicit (no `--interactive` flag); `tum flip` was made context-aware (flip-flop collapsed from three variants to two); a shared `tum-target` resolver was factored out for `close`/`flip`/`push`-from-host; the `@tum-key-*`/`@tum-entry-mode`/`@tum-no-prefix-entry` keymap options were cut (keeping only `@tum-leader`); and the `tags` key, `@tum-tags` state option, and `--tag` flag were dropped (the chooser's fuzzy filter covers borrow-by-category). Tables 1–3 below reflect the current requirements; the Reduction sections, the before/after comparison, and the minimal surface record the original proposals. Every reduction below is now adopted; where the adopted form differs from the original proposal (for example `layout_id` was kept, not dropped), the section notes it.
 
 ---
 
@@ -14,47 +14,37 @@
 
 | Command                              | Options & arguments                                   | Source |
 | ---                                  | ---                                                   | ---    |
-| `tum borrow [<util or layout>]`      | `--new`, `--existing`, `--tag <tag>`, `--interactive` | req    |
-| `tum flip [<slot>]`                  | `--interactive`                                       | req    |
-| `tum close`                          | (none — context-aware)                                | req    |
-| `tum push`                           | (none — acts on the focused borrowed pane)            | req    |
-| `tum pop`                            | (none — attaches the top of the stack)                | req    |
-| `tum import [<name>]`                | (none — name present = named; absent = anonymous)     | req    |
-| `tum ls`                             | (none)                                                | req    |
-| `tum check`                          | (none)                                                | req    |
-| `tum status [<pane_id>]`             | (none — positional pane id for the status bar)        | req    |
-| `tum prompt`                         | (none — PS1 glyph snippet)                            | req    |
-| `tum popup`                          | (none)                                                | req    |
-| `tum cheatsheet`                     | (none)                                                | req    |
-| `tum bindings tmux`                  | (none — `tmux` selects the output format)             | req    |
-| `tum-chooser <prompt> <items> <out>` | (none — fixed 3-positional contract)                  | req    |
+| borrow                               | (none — optional `<util or layout>` positional)       | req    |
+| new                                  | (none — optional `<util or layout>` positional)       | req    |
+| flip                                 | (none — optional `<slot>` positional; context-aware)  | req    |
+| close                                | (none — context-aware)                                | req    |
+| push                                 | (none — acts on the focused borrowed pane)            | req    |
+| pop                                  | (none — attaches the top of the stack)                | req    |
+| import                               | (none — name present = named; absent = anonymous)     | req    |
+| ls                                   | (none)                                                | req    |
+| check                                | (none)                                                | req    |
+| status                               | (none — positional pane id for the status bar)        | req    |
+| prompt                               | (none — PS1 glyph snippet)                            | req    |
+| popup                                | (none)                                                | req    |
+| cheatsheet                           | (none)                                                | req    |
+| bindings tmux                        | (none — `tmux` selects the output format)             | req    |
+| tum-chooser                          | (none — fixed 3-positional contract)                  | req    |
 
-The option load is not evenly distributed. `tum borrow` carries **4 of the 5 user-facing flags** in the whole CLI (`--new`, `--existing`, `--tag`, `--interactive`); `tum flip` carries the other 1 (`--interactive`). Every other command is flag-free — its behavior is positional or context-aware. So "reduce the options" almost entirely means "reduce `tum borrow` and the `@tum-*` option set."
+With the reductions adopted, **the CLI carries no user-facing flags at all.** `tum borrow` and `tum new` take an optional positional; `tum flip` takes an optional slot; every other command is flag-free — its behavior is positional or context-aware. The chooser is invoked implicitly inside commands when a choice is needed, so `--interactive` is gone from every command.
 
 ---
 
 ## Table 2 — tmux `@tum-*` options (the config surface)
 
-| Option                  | Default       | Source | Used by                            |
-| ---                     | ---           | ---    | ---                                |
-| `@tum-chooser`          | `tum-chooser` | req    | runtime — the chooser script path  |
-| `@tum-host-glyph`       | `÷`           | req    | runtime — `tum status`             |
-| `@tum-borrowed-glyph`   | `§`           | req    | runtime — `tum status`             |
-| `@tum-hidden-session`   | `tum-hidden`  | req    | runtime — hidden/push session name |
-| `@tum-leader`           | `t`           | keymap | `tum bindings tmux` (keymap gen)   |
-| `@tum-no-prefix-entry`  | (empty)       | keymap | `tum bindings tmux` (keymap gen)   |
-| `@tum-entry-mode`       | `auto_return` | keymap | `tum bindings tmux` (keymap gen)   |
-| `@tum-key-borrow`       | `b`           | keymap | `tum bindings tmux` (keymap gen)   |
-| `@tum-key-borrow-new`   | `B`           | keymap | `tum bindings tmux` (keymap gen)   |
-| `@tum-key-close`        | `x`           | keymap | `tum bindings tmux` (keymap gen)   |
-| `@tum-key-push`         | `p`           | keymap | `tum bindings tmux` (keymap gen)   |
-| `@tum-key-pop`          | `P`           | keymap | `tum bindings tmux` (keymap gen)   |
-| `@tum-key-import`       | `i`           | keymap | `tum bindings tmux` (keymap gen)   |
-| `@tum-key-import-named` | `I`           | keymap | `tum bindings tmux` (keymap gen)   |
-| `@tum-key-popup`        | `u`           | keymap | `tum bindings tmux` (keymap gen)   |
-| `@tum-key-cheatsheet`   | `?`           | keymap | `tum bindings tmux` (keymap gen)   |
+| Option                | Default       | Source | Used by                            |
+| ---                   | ---           | ---    | ---                                |
+| `@tum-chooser`        | `tum-chooser` | req    | runtime — the chooser script path  |
+| `@tum-host-glyph`     | `÷`           | req    | runtime — status                   |
+| `@tum-borrowed-glyph` | `§`           | req    | runtime — status                   |
+| `@tum-hidden-session` | `tum-hidden`  | req    | runtime — hidden/push session name |
+| `@tum-leader`         | `t`           | req    | bindings tmux (keymap gen)         |
 
-Twelve of the sixteen options exist only to drive `tum bindings tmux` (the keymap generator) — eight of them are the per-binding `@tum-key-*` remap knobs. The runtime reads only four. That separation matters for the reduction: the keymap-gen options can be cut without touching the runtime.
+With the reductions adopted, only `@tum-leader` drives `tum bindings tmux` (the keymap generator); every other key has a default baked into the generator and is remapped by editing the generated `tum-bindings.conf` directly. The runtime reads four options; the generator reads one. The eight `@tum-key-*` remap knobs, `@tum-entry-mode`, and `@tum-no-prefix-entry` were cut (see Reduction 4).
 
 ---
 
@@ -66,12 +56,11 @@ Twelve of the sixteen options exist only to drive `tum bindings tmux` (the keyma
 | `<name>.util`   | `args`      | no       | req    | Arguments to the command.                                                       |
 | `<name>.util`   | `cwd`       | no       | req    | Working directory.                                                              |
 | `<name>.util`   | `env`       | no       | req    | Key=value pairs applied at launch.                                              |
-| `<name>.util`   | `tags`      | no       | req    | Drives `--tag` and `@tum-tags`.                                                 |
 | `<name>.util`   | `slot`      | no       | req    | Auto-assigned on conflict.                                                      |
 | `<name>.layout` | `layout_id` | no       | req    | Defaults to the filename.                                                       |
 | `<name>.layout` | (member)    | yes      | req    | A top-level `<member-name>: anchor=…, side=…, size=…` line; see the layout DSL. |
 
-Two keys pull double duty as state: `tags` (also `@tum-tags` + the `--tag` flag) and `slot` (also `@tum-slot`). `on_exit` was dropped — closing a pane ends tmux-borrow's interest in it. Each droppable key removes a parser branch and, for `tags`, a state option and a CLI flag too.
+One key pulls double duty as state: `slot` (also `@tum-slot`). `on_exit` and `tags` were both dropped — `on_exit` because closing a pane ends tmux-borrow's interest in it, `tags` because the chooser's fuzzy filter covers borrow-by-category (it also removed `@tum-tags` and the `--tag` flag in one move). Each dropped key removes a parser branch.
 
 ---
 
@@ -79,10 +68,10 @@ Two keys pull double duty as state: `tags` (also `@tum-tags` + the `--tag` flag)
 
 Counting the reducible surface:
 
-- **CLI flags:** 5 total — 4 on `tum borrow` (`--new`, `--existing`, `--tag`, `--interactive`), 1 on `tum flip` (`--interactive`).
-- **tmux options:** 16 total — 5 read by the runtime (incl. `@tum-hidden-session`), 11 read only by the keymap generator (8 of those are `@tum-key-*`).
-- **definition keys:** 7 total — 6 utility keys, 1 layout key (`layout_id`); members are top-level lines, not a key.
-- **`tum borrow` modes:** 5 (default, `--new`, `--existing`, `--tag`, no-name) × the resolution order (host-bound → hidden → create). This matrix is the single largest piece of logic in the spec.
+- **CLI flags:** 0 — every behavior is a command, a positional, or context. The chooser is implicit.
+- **tmux options:** 5 — 4 read by the runtime (`@tum-chooser`, `@tum-host-glyph`, `@tum-borrowed-glyph`, `@tum-hidden-session`), 1 read by the keymap generator (`@tum-leader`).
+- **definition keys:** 6 — 5 utility keys (`command`, `args`, `cwd`, `env`, `slot`), 1 layout key (`layout_id`); members are top-level lines, not a key.
+- **`tum borrow` modes:** 3 — default (reuse-or-create), `tum new` (always-create), no-name (chooser over all). `tum new` is a sibling command that skips the reuse-hidden branch, so the resolution matrix lives only in `tum borrow`.
 
 The reductions below target exactly these. Nothing here touches the core model (pane-scope state, `kill-pane` close, the hidden session, push/pop LIFO) — only the option surface on top of it.
 
@@ -92,16 +81,16 @@ The reductions below target exactly these. Nothing here touches the core model (
 
 `tum borrow` is overloaded: it carries a name selector, three mode flags, and a chooser flag. The mode flags are each a different verb and read better as commands. The chooser flag is redundant with the no-name mode.
 
-| Current                    | Proposed            |
-| ---                        | ---                 |
-| `tum borrow --new <util>`  | `tum new <util>`    |
-| `tum borrow --existing`    | (drop)              |
-| `tum borrow --tag <tag>`   | (drop the flag)     |
-| `tum borrow --interactive` | (drop — implicit)   |
-| `tum borrow <util>`        | `tum borrow <util>` |
-| `tum borrow` (no name)     | `tum borrow`        |
+| Current                | Proposed          |
+| ---                    | ---               |
+| borrow --new <util>    | new <util>        |
+| borrow --existing      | (drop)            |
+| borrow --tag <tag>     | (drop the flag)   |
+| borrow --interactive   | (drop — implicit) |
+| borrow <util>          | borrow <util>     |
+| borrow (no name)       | borrow            |
 
-`tum new` accepts a layout name too (always creates fresh member instances), mirroring `tum borrow`. After this, `tum borrow` takes **zero flags** — only an optional positional. `tum new` is a sibling that reuses borrow's attach-to-host logic but skips the "reuse hidden instance" branch. Net: **−4 flags, +1 command**.
+`tum new` accepts a layout name too (always creates fresh member instances), mirroring `tum borrow`. Adopted: `tum borrow` takes **zero flags** — only an optional positional; `tum new` is a sibling that reuses borrow's attach-to-host logic but skips the "reuse hidden instance" branch. Net: **−4 flags, +1 command.**
 
 **On dropping `--existing`.** Its only effect is to refuse creation when no instance exists. The default mode already prefers existing instances (host-bound first, then hidden, create only as a last resort), so the common path never spuriously creates. The remaining case — "I want an error, not a new pane, if nothing is hidden" — is rare and recoverable (the user sees the new pane and closes it). If the need is later proven, restore it as `tum take <util>` (only-existing) rather than a flag, keeping the pattern consistent.
 
@@ -113,10 +102,10 @@ The reductions below target exactly these. Nothing here touches the core model (
 
 The requirements pin three flip-flop shortcuts: by slot (`<prefix> H <slot>`), focused (`<prefix> H`), and chooser (`<prefix> H` with `--interactive`). `tum close` is already context-aware — focused borrowed pane, host with one, or host with several (chooser) — and it carries no flag. `tum flip` can follow the same model:
 
-| `tum flip` input     | Behavior                                                   | Replaces                                    |
-| ---                  | ---                                                        | ---                                         |
-| `tum flip <slot>`    | Toggle the thing in that slot.                             | `<prefix> H <slot>` (kept)                  |
-| `tum flip` (no slot) | Focused borrowed → toggle it; host with several → chooser. | `<prefix> H` + the chooser variant (merged) |
+| flip input        | Behavior                                                   | Replaces                                    |
+| ---               | ---                                                        | ---                                         |
+| flip <slot>       | Toggle the thing in that slot.                             | `<prefix> H <slot>` (kept)                  |
+| flip (no slot)    | Focused borrowed → toggle it; host with several → chooser. | `<prefix> H` + the chooser variant (merged) |
 
 The "focused" and "chooser" variants collapse into one no-argument call that resolves by context, exactly as `tum close` does. This **removes the `--interactive` flag from flip** and reduces the requirements' flip-flop table from three variants to two (by-slot, context). The keymap's `H <slot>` and `H Enter`/`H ?` both map to `tum flip`/`tum flip <slot>`; `H ?` becomes redundant with `H Enter` and can be dropped from the keymap. This is a requirements change (it merges two pinned shortcuts) and should be confirmed at the implementation freeze; the payoff is one shared "resolve the target pane" helper instead of three flip-flop paths.
 
@@ -159,12 +148,12 @@ Result: the keymap-generator reads **1 option** (`@tum-leader`) instead of 12. T
 | Key         | Action                                                                                             |
 | ---         | ---                                                                                                |
 | `on_exit`   | Dropped (adopted) — closing a pane ends tmux-borrow's interest; no exit policy.                    |
-| `tags`      | Drop (or keep display-only).                                                                       |
+| `tags`      | Dropped (adopted) — the chooser's fuzzy filter covers borrow-by-category.                          |
 | `layout_id` | Not adopted — requirements kept `layout_id` and dropped the `members:` wrapper instead (flat DSL). |
 | `env`       | Keep (droppable if v1 must shrink).                                                                |
 | `slot`      | Keep.                                                                                              |
 
-**`on_exit`** is dropped (adopted): when the user closes a pane, it is gone and tmux-borrow does nothing further with it. There is no exit-policy key; a utility runs until the user closes it. **`tags`** is the highest-value cut — dropping it removes the `tags:` key, the `@tum-tags` state option, and the `--tag` flag in one move; the no-name chooser plus fzf filtering covers "borrow by category." If kept, it should be a `tum ls`/chooser display field only, with no `--tag` flag. **`layout_id`** was proposed for dropping (the filename is the natural id), but the requirements instead kept `layout_id` and dropped the `members:` wrapper, making the layout file flat — one `key:value` line per member, parsed by the same loop as utility files. **`env`** stays for cases like `PGPASSWORD` with `psql`; the flat `env: K=V,K=V` form is cheap to parse, but it is the next thing to cut if v1 must shrink further. **`slot`** stays — it is required for flip-flop and already optional with auto-assignment.
+**`on_exit`** is dropped (adopted): when the user closes a pane, it is gone and tmux-borrow does nothing further with it. There is no exit-policy key; a utility runs until the user closes it. **`tags`** is dropped (adopted): dropping it removes the `tags:` key, the `@tum-tags` state option, and the `--tag` flag in one move; the no-name chooser plus fzf filtering covers "borrow by category." A power user who wants to find "all monitors" types `monitor` into the chooser's fuzzy filter. **`layout_id`** was proposed for dropping (the filename is the natural id), but the requirements instead kept `layout_id` and dropped the `members:` wrapper, making the layout file flat — one `key:value` line per member, parsed by the same loop as utility files. **`env`** stays for cases like `PGPASSWORD` with `psql`; the flat `env: K=V,K=V` form is cheap to parse, but it is the next thing to cut if v1 must shrink further. **`slot`** stays — it is required for flip-flop and already optional with auto-assignment.
 
 ---
 
@@ -172,56 +161,56 @@ Result: the keymap-generator reads **1 option** (`@tum-leader`) instead of 12. T
 
 `tum status`'s `--pane=<id>` (status bar) and `--prompt` (shell) were integration hooks, not user flags. Adopted: they are now two commands in the requirements.
 
-| Before                   | After (in requirements)  |
-| ---                      | ---                      |
-| `tum status --pane=<id>` | `tum status [<pane_id>]` |
-| `tum status --prompt`    | `tum prompt`             |
+| Before              | After (in requirements) |
+| ---                 | ---                     |
+| status --pane=<id>  | status [<pane_id>]      |
+| status --prompt     | prompt                  |
 
 `tum status [<pane_id>]` takes a positional pane id (tmux interpolates `#{pane_id}` into it) and emits the glyph string for the status bar. `tum prompt` is a separate, flag-free command for the PS1 snippet — distinct output, distinct command.
 
 ---
 
-## The proposed minimal surface
+## The minimal surface (adopted)
 
-After all six reductions:
+After all six reductions — all now adopted:
 
 **CLI** (everything is positional or flag-free):
 
-| Command                              | Options & arguments        |
-| ---                                  | ---                        |
-| `tum borrow [<util or layout>]`      | (none — no-name = chooser) |
-| `tum new [<util or layout>]`         | (none — always create)     |
-| `tum flip [<slot>]`                  | (none — context-aware)     |
-| `tum close`                          | (none — context-aware)     |
-| `tum push`                           | (none)                     |
-| `tum pop`                            | (none)                     |
-| `tum import [<name>]`                | (none)                     |
-| `tum ls`                             | (none)                     |
-| `tum check`                          | (none)                     |
-| `tum status [<pane_id>]`             | (none)                     |
-| `tum prompt`                         | (none — PS1 glyphs)        |
-| `tum bindings tmux`                  | (none)                     |
-| `tum popup`, `tum cheatsheet`        | (none — optional)          |
-| `tum-chooser <prompt> <items> <out>` | (none — fixed contract)    |
+| Command                        | Options & arguments        |
+| ---                            | ---                        |
+| borrow [<util or layout>]      | (none — no-name = chooser) |
+| new [<util or layout>]         | (none — always create)     |
+| flip [<slot>]                  | (none — context-aware)     |
+| close                          | (none — context-aware)     |
+| push                           | (none)                     |
+| pop                            | (none)                     |
+| import [<name>]                | (none)                     |
+| ls                             | (none)                     |
+| check                          | (none)                     |
+| status [<pane_id>]             | (none)                     |
+| prompt                         | (none — PS1 glyphs)        |
+| bindings tmux                  | (none)                     |
+| popup, cheatsheet              | (none — optional)          |
+| tum-chooser <prompt> <items> <out> | (none — fixed contract)    |
 
-**User-facing CLI flags: zero.** Every behavior is a command, a positional, or context. (`tum popup` and `tum cheatsheet` remain optional/deferrable; they carry no flags either way.)
+**User-facing CLI flags: zero.** Every behavior is a command, a positional, or context. (`tum popup` and `tum cheatsheet` remain optional/deferrable; they carry no flags either way.) This is the current requirements state.
 
-**tmux options: 5** (down from 16) — `@tum-chooser`, `@tum-host-glyph`, `@tum-borrowed-glyph`, `@tum-hidden-session`, `@tum-leader`.
+**tmux options: 5** (down from 16) — `@tum-chooser`, `@tum-host-glyph`, `@tum-borrowed-glyph`, `@tum-hidden-session`, `@tum-leader`. This is the current requirements state.
 
-**definition keys: 6** (down from 9) — utility: `command`, `args`, `cwd`, `env`, `slot` (drop `on_exit`, drop `tags`); layout: `members` (drop `layout_id`).
+**definition keys: 6** (down from 9) — utility: `command`, `args`, `cwd`, `env`, `slot` (drop `on_exit`, drop `tags`); layout: `layout_id` (the `members:` wrapper was dropped in favor of the flat DSL; `layout_id` was kept, not dropped).
 
-**Internal factoring:** one `tum-target` resolver shared by `close`, `flip`, `push`-from-host; the chooser called implicitly inside it (no `--interactive` flag).
+**Internal factoring:** one `tum-target` resolver shared by `close`, `flip`, `push`-from-host; the chooser called implicitly inside it (no `--interactive` flag). This is the current requirements state.
 
-**Adoption status.** This is the full-proposal end state, not the current requirements. Of it, the requirements adopted: dropping `on_exit`; adding `tum flip`/`close`/`popup`/`cheatsheet`/`bindings`/`prompt`; splitting `tum status`/`tum prompt`; and the flat layout DSL — which dropped the `members:` wrapper and kept `layout_id`, the opposite of the `layout: members (drop layout_id)` row above. Not adopted: zero CLI flags (the requirements retain `--new`/`--existing`/`--tag`/`--interactive`), dropping `tags`, merging flip-flop to two variants, and cutting the `@tum-key-*` options. See the scope note.
+**Adoption status.** All six reductions are now adopted into the requirements — this section describes the current state, not a future one. The one place the adopted form differs from the original proposal is `layout_id`: the proposal was to drop it (the filename is the natural id), but the requirements instead kept `layout_id` and dropped the `members:` wrapper for a flat DSL. See the scope note.
 
 ---
 
-## Before / after
+## Before / after (historical: before = pre-reduction, after = current requirements)
 
 | Surface                 | Before | After | Cut                                                                                    |
 | ---                     | ---    | ---   | ---                                                                                    |
-| CLI user-facing flags   | 6      | 0     | `--new`→`tum new`; drop `--existing`, `--tag`, `--interactive`×2, `--pane`, `--prompt` |
-| `tum` subcommands       | 12     | 14    | +`tum new`, +`tum prompt` (commands replace flags)                                     |
+| CLI user-facing flags   | 6      | 0     | `--new`→new; drop `--existing`, `--tag`, `--interactive`×2, `--pane`, `--prompt` |
+| `tum` subcommands       | 12     | 14    | +new, +prompt (commands replace flags)                                                 |
 | tmux `@tum-*` options   | 16     | 5     | drop 8×`@tum-key-*`, `@tum-entry-mode`, `@tum-no-prefix-entry`                         |
 | utility definition keys | 7      | 5     | drop `on_exit`, `tags`                                                                 |
 | layout definition keys  | 2      | 1     | drop `layout_id`                                                                       |

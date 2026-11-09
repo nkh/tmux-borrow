@@ -26,11 +26,10 @@ A utility file is flat `key:value`:
 
 ```
 command: htop
-tags: monitor
 slot: 1
 ```
 
-Only `command` is required. `args`, `cwd`, `env`, `tags`, and `slot` are optional. A utility runs until you close it (`tum close`); there is no exit-policy key.
+Only `command` is required. `args`, `cwd`, `env`, and `slot` are optional. A utility runs until you close it (`tum close`); there is no exit-policy key.
 
 ## Borrow a utility
 
@@ -42,24 +41,17 @@ tum borrow htop
 
 If a hidden `htop` instance is already bound to this pane, it comes back. If hidden instances exist but none are yours, the chooser picks one. If none exist, a new one is created and borrowed.
 
-Three modes give you control:
+Two commands give you control:
 
 ```sh
-tum borrow htop            # existing-or-create (default)
-tum borrow --new htop      # always create a fresh instance
-tum borrow --existing htop # only borrow an existing instance
+tum borrow htop      # existing-or-create (default): reuse a hidden instance, else create
+tum new htop         # always create a fresh instance
 ```
 
 Borrow with no name opens the chooser over everything:
 
 ```sh
 tum borrow                 # chooser over all utilities and layouts
-```
-
-Borrow by tag:
-
-```sh
-tum borrow --tag monitor
 ```
 
 ## Hide and show (flip-flop)
@@ -130,7 +122,7 @@ An anonymous import is borrowable, hideable, and closeable like any utility, but
 
 ## The chooser
 
-Any command that needs you to pick something takes `--interactive`, which routes the choice through an external chooser script:
+Any command that needs you to pick something routes the choice through an external chooser script — the chooser is implicit, invoked when a command must choose:
 
 ```
 tum-chooser <prompt> <items_file> <output_file>
@@ -163,12 +155,12 @@ tum prompt    # glyph snippet for the shell prompt (PS1)
 
 These are the workflows tmux-borrow is built for. Each maps to the features above.
 
-- **Project file manager per window.** Borrow a `ranger` instance rooted in your project; hide it when you need the space; show it with the same key. Borrow `--new` for a second project.
+- **Project file manager per window.** Borrow a `ranger` instance rooted in your project; hide it when you need the space; show it with the same key. `tum new` for a second project.
 - **Shared system monitor.** One `htop` instance lives in the hidden pool; borrow it into any window, hide it, bring it back — it never restarts.
 - **Multiple log streams.** Borrow several `tail` instances into one debugging window; hide the ones you are not reading.
 - **Ad hoc build log.** `tum import` an existing `tail -F build.log` pane; borrow it elsewhere; close it when done.
 - **Database console on demand.** `tum import prod-db` captures a running `psql`; after a server restart, `tum borrow prod-db` recreates it from the saved definition.
-- **Git UI across projects.** A shared `lazygit` borrowed into any window; a project-scoped `--new` instance for a specific repo.
+- **Git UI across projects.** A shared `lazygit` borrowed into any window; a project-scoped `tum new` instance for a specific repo.
 - **Debugger and logs together.** Define a `debug` layout (debugger + two logs); `tum borrow debug` brings all three in at once; toggle the group with one slot.
 - **Switch task context.** Push your current utilities onto the stack; pop them back when you return — no layout file needed.
 - **Kill stale background tools.** `tum ls` finds them in any session; close from the list or the pane.

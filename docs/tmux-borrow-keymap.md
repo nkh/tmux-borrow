@@ -2,7 +2,7 @@
 
 ## A shortcut-driven way to drive every `tum` command, grouped so it's memorizable.
 
-> **Scope.** This document defines the key-binding scheme for tmux-borrow. It is a thin layer over the CLI defined in `tmux-borrow-requirements.md`: every binding shells out to the same `tum` commands scripts use, so the keymap and the CLI can never drift apart. The requirements pin one shortcut directly — flip-flop on `H` — and leave the rest to this keymap. The CLI commands (`tum flip`, `tum close`, `tum popup`, `tum cheatsheet`, `tum bindings tmux`, `tum prompt`) are requirements-explicit (see the requirements' Command summary); only the binding-generation options (`@tum-key-*`, `@tum-entry-mode`, `@tum-no-prefix-entry`) remain keymap-proposed.
+> **Scope.** This document defines the key-binding scheme for tmux-borrow. It is a thin layer over the CLI defined in `tmux-borrow-requirements.md`: every binding shells out to the same `tum` commands scripts use, so the keymap and the CLI can never drift apart. The requirements pin one shortcut directly — flip-flop on `H` — and leave the rest to this keymap. The CLI commands (`tum flip`, `tum close`, `tum popup`, `tum cheatsheet`, `tum bindings tmux`, `tum prompt`) are requirements-explicit (see the requirements' Command summary); only `@tum-leader` remains a keymap option; every other key is remapped by editing the generated `tum-bindings.conf` directly.
 
 ---
 
@@ -24,7 +24,7 @@ The design goals, in priority order:
 
 These rules generate the whole keymap. Once you internalize them, you can derive any binding without looking it up.
 
-1. **Flip-flop is bound directly to `H`, per the requirements.** The requirements specify `<prefix> H <slot>`, `<prefix> H`, and `<prefix> H` with `--interactive` for flip-flop. `H` (capital) is collision-safe — tmux has no default `prefix H` binding — so it lives directly in the prefix table, exactly as the requirements say. This is the one shortcut the requirements pin; the keymap honors it verbatim.
+1. **Flip-flop is bound directly to `H`, per the requirements.** The requirements specify `<prefix> H <slot>` and `<prefix> H` (context-aware) for flip-flop. `H` (capital) is collision-safe — tmux has no default `prefix H` binding — so it lives directly in the prefix table, exactly as the requirements say. This is the one shortcut the requirements pin; the keymap honors it verbatim.
 2. **The `t` leader scopes the remaining verbs into tmux-borrow's namespace.** The natural mnemonic keys for the other verbs collide with tmux defaults (`x` = kill-pane, `p` = previous-window, `c` = new-window, `n` = next-window, `l` = last-window, `s` = choose-session). After your tmux prefix, `t` enters "tum mode," and every subsequent key is read from tum's own key-tables, so none of these collide. `H` is the exception: it is safe, so it stays direct.
 3. **Single key = common verb; `<group> <action>` = family.** The things you do constantly (borrow, close, push, pop, import) are single keys right after the leader. Everything that manages nouns (layout, list, config) is a two-key chord: group leader, then action.
 4. **Uppercase = stronger / broader variant.** `B` borrows new (vs `b` borrow existing-or-create); `P` pops (vs `p` push); `I` imports named (vs `i` anonymous). Capital always means "more."
@@ -69,23 +69,23 @@ Every binding, in one view. "Direct" = bound in the prefix table (no `t` leader)
 
 The "CLI" column shows the command each binding drives. `tum flip`, `tum close`, `tum popup`, and `tum cheatsheet` are requirements-explicit commands (see the requirements' Command summary); `tum bindings tmux` is the keymap's generator, also requirements-explicit.
 
-| Key     | Type  | Action                                         | CLI                                 |
-| ---     | ---   | ---                                            | ---                                 |
-| `H`     | Sub   | Flip-flop (reads a slot) — direct, per req.    | `tum flip [<slot>]`                 |
-| `t b`   | Leaf  | Borrow (interactive chooser)                   | `tum borrow --interactive`          |
-| `t B`   | Leaf  | Borrow new (always create, interactive)        | `tum borrow --new --interactive`    |
-| `t x`   | Leaf  | Close (context-aware kill-pane)                | `tum close`                         |
-| `t p`   | Leaf  | Push the focused borrowed pane onto the stack  | `tum push`                          |
-| `t P`   | Leaf  | Pop the top of the stack to the current host   | `tum pop`                           |
-| `t i`   | Leaf  | Import the current pane (anonymous, temporary) | `tum import`                        |
-| `t I`   | Leaf  | Import the current pane (named, saved to file) | `tum import <name>` (name prompted) |
-| `t u`   | Leaf  | Open the popup (master action menu)            | `tum popup`                         |
-| `t ?`   | Leaf  | Cheatsheet overlay                             | `tum cheatsheet`                    |
-| `t l`   | Group | Layout family                                  | —                                   |
-| `t g`   | Group | Go / view (listings)                           | —                                   |
-| `t c`   | Group | Config family                                  | —                                   |
-| `t q`   | Leaf  | Cancel (back to root)                          | —                                   |
-| `t Esc` | Leaf  | Cancel (back to root)                          | —                                   |
+| Key     | Type  | Action                                         | CLI                  |
+| ---     | ---   | ---                                            | ---                  |
+| `H`     | Sub   | Flip-flop (reads a slot) — direct, per req.    | flip [<slot>]        |
+| `t b`   | Leaf  | Borrow (no-name chooser)                       | borrow               |
+| `t B`   | Leaf  | Borrow new (always create)                     | new                  |
+| `t x`   | Leaf  | Close (context-aware kill-pane)                | close                |
+| `t p`   | Leaf  | Push the focused borrowed pane onto the stack  | push                 |
+| `t P`   | Leaf  | Pop the top of the stack to the current host   | pop                  |
+| `t i`   | Leaf  | Import the current pane (anonymous, temporary) | import               |
+| `t I`   | Leaf  | Import the current pane (named, saved to file) | import <name>        |
+| `t u`   | Leaf  | Open the popup (master action menu)            | popup                |
+| `t ?`   | Leaf  | Cheatsheet overlay                             | cheatsheet           |
+| `t l`   | Group | Layout family                                  | —                    |
+| `t g`   | Group | Go / view (listings)                           | —                    |
+| `t c`   | Group | Config family                                  | —                    |
+| `t q`   | Leaf  | Cancel (back to root)                          | —                    |
+| `t Esc` | Leaf  | Cancel (back to root)                          | —                    |
 
 ---
 
@@ -96,7 +96,7 @@ These are the daily reflexes. They fire directly off `t` and return you to the r
 | Key   | Does         | What you see                                                                                                                      |
 | ---   | ---          | ---                                                                                                                               |
 | `t b` | Borrow       | Chooser over all utilities and layouts (no-name mode). Pick one → pane attaches beside the active pane.                           |
-| `t B` | Borrow new   | Same chooser, but always creates a fresh instance rather than reusing a hidden one (the `--new` mode).                            |
+| `t B` | Borrow new   | Same chooser, but always creates a fresh instance rather than reusing a hidden one (the `new` command).                            |
 | `t x` | Close        | Context-aware `kill-pane`: from a borrowed pane kills it; from a host with one, kills that; with several, opens the chooser.      |
 | `t p` | Push         | Detaches the focused borrowed pane onto the LIFO push stack (no host). From the host with several borrowed, opens the chooser.    |
 | `t P` | Pop          | Attaches the highest-`@tum-push-seq` pane to the current host at its recorded geometry. Consumes it from the stack.               |
@@ -145,11 +145,10 @@ After `H`, you press one key:
 | Key in `tum-flip` | Does                                                                               | Requirements variant satisfied              |
 | ---               | ---                                                                                | ---                                         |
 | `0`–`9`, `a`–`z`  | Toggle the thing in that slot. Hide if shown, show if hidden.                      | `<prefix> H <slot>` — toggle by slot        |
-| `Enter`           | Toggle the focused pane (the "no slot" case).                                      | `<prefix> H` — toggle focused               |
-| `?`               | Open the chooser to pick which attached thing to toggle (for a host with several). | `<prefix> H` with `--interactive` — chooser |
+| `Enter`           | Toggle the focused pane, or open the chooser for a host with several attached (context-aware no-slot case). | `<prefix> H` — toggle (context)             |
 | `q` / `Esc`       | Cancel; back to root, nothing changed.                                             | —                                           |
 
-The requirements' three flip-flop variants all route through this one sub-table. Tmux needs a terminator key after entering a sub-table, so the focused variant (`<prefix> H` in the requirements) is realized as `<prefix> H Enter` here; the chooser variant (`<prefix> H` with `--interactive`) is `<prefix> H ?`.
+The requirements' two flip-flop variants route through this one sub-table. Tmux needs a terminator key after entering a sub-table, so the context-aware no-slot variant (`<prefix> H` in the requirements) is realized as `<prefix> H Enter` here — it toggles the focused pane, or opens the chooser if the host has several attached things.
 
 - A layout's slot toggles all its members as a group; a member's slot toggles just that member.
 - Hiding a layout member parks it in the hidden session but keeps its `@tum-layout`; re-showing the layout brings it back.
@@ -181,10 +180,10 @@ C-b H d          # all three show again at their last geometries
 
 Layouts are static definition files (one file per layout, flat `key:value`, filename is the name, in `~/.config/tum/`). Borrowing a layout is the primary layout action and is covered by `t b`: the no-name chooser the requirements define shows all utilities **and** layouts, so picking a layout there borrows all its members into the host window at their declared positions. The layout family itself is just file management.
 
-| Key     | Does                                           | What runs                                                      |
-| ---     | ---                                            | ---                                                            |
-| `t l e` | Edit a layout file in `$EDITOR` (chooser pick) | chooser picks a layout → `$EDITOR ~/.config/tum/<name>.layout` |
-| `t l l` | List layout definition files                   | `ls ~/.config/tum/*.layout`                                    |
+| Key     | Does                                                         | What runs                              |
+| ---     | ---                                                          | ---                                    |
+| `t c e` | Open the config directory in `$EDITOR` (utilities + layouts) | `$EDITOR ~/.config/tum/`               |
+| `t c s` | Show effective `@tum-*` tmux options                         | `tmux show-options -g` filtered to `@tum` |
 
 These are keymap-level file operations, not `tum` subcommands: the binding runs `$EDITOR` or `ls` directly. Each member of a borrowed layout gets its own slot for individual flip-flop; the layout group gets a slot for group flip-flop. Close one member and the rest continue — the layout is just an id (`@tum-layout`) stamped on the panes, nothing to repair.
 
@@ -208,9 +207,9 @@ Read-only listings. `g` for "go look."
 
 | Key     | Does                                                     | CLI          |
 | ---     | ---                                                      | ---          |
-| `t g l` | List all utility panes across all sessions               | `tum ls`     |
-| `t g c` | Check for orphans (host dead, utility alive)             | `tum check`  |
-| `t g s` | Show the current pane's tum state (glyph + binding info) | `tum status` |
+| `t g l` | List all utility panes across all sessions               | ls           |
+| `t g c` | Check for orphans (host dead, utility alive)             | check        |
+| `t g s` | Show the current pane's tum state (glyph + binding info) | status       |
 
 `tum ls` queries `tmux list-panes -a` and shows utility, layout, host, slot, geometry, and state (shown / hidden / pushed / orphan). Orphans — a half-dead binding where the host pane is gone but the utility pane is alive — are marked `!` and left in place; `tum check` lists them for the user to act on (no auto-return).
 
@@ -268,7 +267,7 @@ The popup (`t u`) and cheatsheet (`t ?`) are conveniences over the requirements'
 
 ## Chooser contract (from the requirements)
 
-Every interactive binding passes `--interactive`, which routes the choice through the external chooser script. The contract, fixed by the requirements:
+Every binding that needs a choice routes it through the external chooser script — the chooser is implicit, invoked internally by each command when it must pick among several candidates. The contract, fixed by the requirements:
 
 ```
 tum-chooser <prompt> <items_file> <output_file>
@@ -287,30 +286,28 @@ See `component-analysis.md` for the picker, prompt-library, and other reusable p
 
 Every command in the requirements maps to at least one binding.
 
-| Requirements command              | Binding(s)                                        |
-| ---                               | ---                                               |
-| `tum borrow` (default mode)       | `t b` (chooser; default-mode resolution on pick)  |
-| `tum borrow --new`                | `t B`                                             |
-| `tum borrow --existing` / `--tag` | CLI / popup (no dedicated key; uncommon)          |
-| `tum borrow` (no-name chooser)    | `t b`                                             |
-| flip-flop by slot                 | `H <slot>`                                        |
-| flip-flop focused                 | `H Enter`                                         |
-| flip-flop via chooser             | `H ?`                                             |
-| close (context-aware kill-pane)   | `t x`                                             |
-| `tum push`                        | `t p`                                             |
-| `tum pop`                         | `t P`                                             |
-| `tum import` (anonymous)          | `t i`                                             |
-| `tum import <name>`               | `t I`                                             |
-| `tum ls`                          | `t g l`                                           |
-| `tum check`                       | `t g c`                                           |
-| `tum status`                      | `t g s`                                           |
-| borrow a layout                   | `t b` (chooser includes layouts)                  |
-| edit a layout file                | `t l e`                                           |
-| edit config dir                   | `t c e`                                           |
-| `--interactive` (chooser)         | every interactive binding passes it automatically |
-| `tum popup` / `tum cheatsheet`    | `t u` / `t ?`                                     |
+| Requirements command     | Binding(s)                                        |
+| ---                      | ---                                               |
+| borrow (default mode)    | `t b` (chooser; default-mode resolution on pick)  |
+| new                      | `t B`                                             |
+| borrow (no-name chooser) | `t b`                                             |
+| flip-flop by slot        | `H <slot>`                                        |
+| flip-flop (context)      | `H Enter`                                         |
+| close (context-aware)    | `t x`                                             |
+| push                     | `t p`                                             |
+| pop                      | `t P`                                             |
+| import (anonymous)       | `t i`                                             |
+| import <name>            | `t I`                                             |
+| ls                       | `t g l`                                           |
+| check                    | `t g c`                                           |
+| status                   | `t g s`                                           |
+| borrow a layout          | `t b` (chooser includes layouts)                  |
+| edit a layout file       | `t l e`                                           |
+| edit config dir          | `t c e`                                           |
+| chooser (implicit)       | invoked inside commands when a choice is needed   |
+| popup / cheatsheet       | `t u` / `t ?`                                     |
 
-No requirements command is unreachable; no binding duplicates another's job. Borrowing a layout is covered by `t b` (the no-name chooser the requirements define shows utilities and layouts together), so there is no separate layout-borrow key.
+No requirements command is unreachable; no binding duplicates another's job. Borrowing a layout is covered by `t b` (the no-name chooser the requirements define shows utilities and layouts together), so there is no separate layout-borrow key. The chooser is implicit — every binding that needs a choice invokes it internally, so there is no `--interactive` flag to bind.
 
 ---
 
@@ -360,33 +357,22 @@ These come straight from the requirements and are read by the `tum` runtime.
 
 | Option                | Default       | Meaning                                                        |
 | ---                   | ---           | ---                                                            |
-| `@tum-chooser`        | `tum-chooser` | The chooser script on PATH (the `--interactive` backend).      |
+| `@tum-chooser`        | `tum-chooser` | The chooser script on PATH (invoked internally when a command must choose).      |
 | `@tum-host-glyph`     | `÷`           | Glyph shown on a host pane with borrowed things attached.      |
 | `@tum-borrowed-glyph` | `§`           | Glyph shown on a borrowed pane (plus utility name).            |
 | `@tum-hidden-session` | `tum-hidden`  | Name of the shared session where hidden and pushed panes park. |
 
 Orphans — a host pane gone, utility pane alive — are marked with a `!` prefix in `tum ls` and `tum status`, per the requirements.
 
-### Keymap-proposed options (for binding generation) **(proposed)**
+### Keymap options (for binding generation)
 
-These drive `tum bindings tmux`, the keymap-proposed generator that emits the `bind-key` fragment from the options. They are not read by the runtime `tum` commands.
+These drive `tum bindings tmux`, the generator that emits the `bind-key` fragment from the options. They are not read by the runtime `tum` commands. Only the leader is an option; every other key has a default baked into the generator and is remapped by editing the generated `tum-bindings.conf` directly.
 
-| Option                  | Default       | Meaning                                                                 |
-| ---                     | ---           | ---                                                                     |
-| `@tum-leader`           | `t`           | The tum leader key, pressed after your tmux prefix.                     |
-| `@tum-no-prefix-entry`  | (empty)       | A key bound in tmux's root table to enter tum mode without the prefix.  |
-| `@tum-entry-mode`       | `auto_return` | `auto_return` (fire and return to root) or `sticky` (stay in tum mode). |
-| `@tum-key-borrow`       | `b`           | Individual key overrides (one per action).                              |
-| `@tum-key-borrow-new`   | `B`           |                                                                         |
-| `@tum-key-close`        | `x`           |                                                                         |
-| `@tum-key-push`         | `p`           |                                                                         |
-| `@tum-key-pop`          | `P`           |                                                                         |
-| `@tum-key-import`       | `i`           |                                                                         |
-| `@tum-key-import-named` | `I`           |                                                                         |
-| `@tum-key-popup`        | `u`           |                                                                         |
-| `@tum-key-cheatsheet`   | `?`           |                                                                         |
+| Option        | Default | Meaning                                       |
+| ---           | ---     | ---                                           |
+| `@tum-leader` | `t`     | The tum leader key, pressed after your tmux prefix. |
 
-The flip-flop key (`H`) is fixed by the requirements and is not remappable through this table. Any other key omitted keeps its default. Rebinding is always non-destructive: a key left unbound falls through to the popup (`t u`).
+The flip-flop key (`H`) is fixed by the requirements and is not remappable. Every other key has a default baked into the generator; to change one, edit the generated `tum-bindings.conf` — one file, not a per-key option. Rebinding is always non-destructive: a key left unbound falls through to the popup (`t u`).
 
 ### Installing in `~/.tmux.conf`
 
@@ -401,7 +387,7 @@ source-file ~/.config/tmux/tum-bindings.conf
 The real file is produced and validated by `tum bindings tmux`. This shows the shape:
 
 ```sh
-# Generated by `tum bindings tmux` — do not edit by hand; set @tum-* options instead.
+# Generated by `tum bindings tmux` — edit this file to remap keys; only @tum-leader is an option.
 
 # 1. Flip-flop: bound directly to H in the prefix table (per requirements),
 #    and again under the t leader so it works from either entry path.
@@ -415,10 +401,10 @@ bind-key -T prefix t switch-client -T tum-root
 #    Interactive bindings run in a popup (they need a TTY for the chooser);
 #    non-interactive bindings use run-shell.
 bind-key -T tum-root b \
-    display-popup -E -w 80% -h 80% 'tum borrow --interactive' \;\
+    display-popup -E -w 80% -h 80% 'tum borrow' \;\
     switch-client -T root
 bind-key -T tum-root B \
-    display-popup -E -w 80% -h 80% 'tum borrow --new --interactive' \;\
+    display-popup -E -w 80% -h 80% 'tum new' \;\
     switch-client -T root
 bind-key -T tum-root x \
     run-shell -b 'tum close' \;\
@@ -441,7 +427,6 @@ bind-key -T tum-root u \
 
 # 4. Flip-flop sub-table: slot key, focused, chooser, cancel.
 bind-key -T tum-flip Enter  run-shell -b 'tum flip'      \;  switch-client -T root
-bind-key -T tum-flip ?      display-popup -E 'tum flip --interactive' \;  switch-client -T root
 bind-key -T tum-flip 1      run-shell -b 'tum flip 1'    \;  switch-client -T root
 bind-key -T tum-flip 2      run-shell -b 'tum flip 2'    \;  switch-client -T root
 # ... one binding per slot key in use ...
@@ -484,11 +469,12 @@ bind-key -n F12 switch-client -T tum-root
 
 The `<prefix> t` path and the no-prefix path can **coexist** — both reach the same `tum-root` table — so enable both and use whichever your hands are nearer. Set it from the source of truth:
 
-```sh
-set -g @tum-no-prefix-entry "F12"     # "" = disabled (default)
-```
+The no-prefix entry is a manual `bind-key` line you add to your `tmux.conf` — it is not driven by an option, so the generated `tum-bindings.conf` does not emit it. Add it yourself:
 
-`tum bindings tmux` emits the extra `bind-key -n` line alongside the `<prefix> t` leader.
+```sh
+# Press F12 anywhere -> you're in tum mode. No C-b needed.
+bind-key -n F12 switch-client -T tum-root
+```
 
 **The only real constraint is the key choice**, because `-n` bindings fire in *every* pane (shells, vim, emacs, pagers). The entry key must be something none of your apps use:
 
@@ -505,15 +491,11 @@ set -g @tum-no-prefix-entry "F12"     # "" = disabled (default)
 - **`M-t`.** It's `transpose-words` in bash and emacs and is used by vim's Meta layer. It will bite you in any pane running a shell.
 - **`C-\`.** It sends `SIGQUIT` to the foreground process — the kind of key that quietly kills your REPL or test runner.
 
-### Modal vs. auto-return (a separate choice)
+### Modal vs. auto-return (a manual edit)
 
-By default each leaf fires and returns you to `root`, so a second tum action needs another entry keystroke. If you chain several tum actions at once, switch to **sticky** entry mode: leaves fire but you stay in `tum-root` until `Esc`/`q`, so one entry gives you `t b` then `H 1` then `t x` in sequence without re-pressing the prefix. The tradeoff is the usual modal risk — a fumbled key leaves you "in tum mode" until you press `Esc`. Auto-return is the safer default; sticky is opt-in:
+The generated fragment uses **auto-return**: each leaf fires and returns you to `root`, so a second tum action needs another entry keystroke. This is the safe default and the only mode the generator emits — there is no `@tum-entry-mode` option.
 
-```sh
-set -g @tum-entry-mode "sticky"     # "auto_return" (default) | "sticky"
-```
-
-The generated fragment differs only in whether leaves end with `switch-client -T root` (auto-return) or `switch-client -T tum-root` (sticky); the key assignments are identical either way.
+If you chain several tum actions at once and want **sticky** entry (leaves fire but you stay in `tum-root` until `Esc`/`q`), edit the generated `tum-bindings.conf`: change the trailing `switch-client -T root` on each leaf to `switch-client -T tum-root`. The tradeoff is the usual modal risk — a fumbled key leaves you "in tum mode" until you press `Esc`. The key assignments are identical either way; only the terminator differs.
 
 ---
 
@@ -525,7 +507,7 @@ If you remember nothing else, remember this:
 
 A few mnemonic hooks that make the families stick:
 
-- **`H` is the toggle.** The one key the requirements pin. It hides and shows by slot, or the focused pane, or via the chooser.
+- **`H` is the toggle.** The one key the requirements pin. It hides and shows by slot, or the focused pane — and opens the chooser for a host with several attached.
 - **Three core verbs under `t`.** `b` `x` and the `H` toggle are the three things you do to a borrowed pane — bring it in, kill it, hide/show it.
 - **Push and pop.** `p`/`P` are a pair: lowercase pushes (detaches), uppercase pops (attaches). One direction each.
 - **Import.** `i`/`I` are a pair: lowercase is anonymous (temporary), uppercase is named (saved). Capital = more permanent.
@@ -540,9 +522,8 @@ This keymap is a proposed design, built on the requirements. A few items are del
 
 | Open item                                                                      | Where it gets decided                           |
 | ---                                                                            | ---                                             |
-| The `tum bindings tmux` generator and installer                                | Phase 1 (CLI skeleton)                          |
+| The `bindings tmux` generator and installer                                     | Phase 1 (CLI skeleton)                          |
 | Flip-flop focused-toggle terminator: `Enter` vs. `.` vs. a direct-fire `H`     | Phase 0; this doc uses `Enter` in the sub-table |
 | Per-binding result feedback (`display-message` on `run-shell` actions)         | Phase 1                                         |
-| Default `@tum-entry-mode`: `auto_return` (safer) vs. `sticky` (chains actions) | Phase 0; this doc recommends `auto_return`      |
 
 The principle behind every open item is the same: the keymap must stay a thin wrapper over the CLI, generated from tmux options, never colliding with tmux, and always cancellable. As long as those hold, the exact key choices are tunable without redesign.

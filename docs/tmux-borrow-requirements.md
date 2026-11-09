@@ -55,11 +55,9 @@ Specifically:
 | Import            | Adopt an existing tmux pane as a utility. Anonymous (temporary) or named (saved to a definition file).                                       |
 | Hidden session    | The single shared session where hidden and pushed panes park. Name configurable via the `@tum-hidden-session` option (default `tum-hidden`). |
 | Slot              | A single-character key assigned to a borrowed thing (utility, layout, or layout member) for flip-flop.                                       |
-| Chooser           | The external interactive selector script, called via a defined API. `--interactive` routes through it.                                       |
+| Chooser           | The external interactive selector script, called via a defined API. Invoked implicitly when a command must choose among several candidates. |
 | Pane-scope option | A tmux user option (`@tum-*`) set on a pane with `-p`. The state store; survives `move-pane`; dies with the pane.                            |
 | Orphan            | A half-dead binding: the host pane is gone but the utility pane is alive. Marked `!`, left in place.                                         |
-| Tag               | A free-form marker on a utility definition, usable as a borrow selector.                                                                     |
-
 ---
 
 ## Core model
@@ -85,7 +83,6 @@ Each utility pane carries its state in pane-scope user options:
 | `@tum-layout`   | Layout id; empty for a standalone utility.                         |
 | `@tum-slot`     | Slot key for flip-flop.                                            |
 | `@tum-geometry` | Last-used width and height, captured at hide, restored on show.    |
-| `@tum-tags`     | Comma-separated tags from the definition.                          |
 | `@tum-source`   | `defined`, `imported-anon`, or `imported-named`.                   |
 | `@tum-pushed`   | Present (with `@tum-push-seq`) when the pane is on the push stack. |
 
@@ -112,7 +109,6 @@ Each utility pane carries its state in pane-scope user options:
 | `args`    | no       | Arguments to the command.                                                               |
 | `cwd`     | no       | Working directory.                                                                      |
 | `env`     | no       | Comma-separated `KEY=VALUE` pairs applied at launch (e.g. `PGPASSWORD=secret,FOO=bar`). |
-| `tags`    | no       | Comma-separated tags.                                                                   |
 | `slot`    | no       | Default slot key; auto-assigned on conflict.                                            |
 
 ### Layout file keys
@@ -171,15 +167,13 @@ Borrow is the primary action: attach a utility or layout beside the current host
 
 ### Modes
 
-| Mode     | Command                        | Behavior                                                                                                                 |
-| ---      | ---                            | ---                                                                                                                      |
-| Default  | `tum borrow <util>`            | Borrow hidden instance bound to this host; else existing hidden (chooser if several); else create and borrow.            |
-| New      | `tum borrow --new <util>`      | Always create a fresh instance, then borrow it.                                                                          |
-| Existing | `tum borrow --existing <util>` | Only borrow an existing instance; error or chooser if none.                                                              |
-| By tag   | `tum borrow --tag <tag>`       | Borrow by tag; resolution as default mode.                                                                               |
-| No name  | `tum borrow`                   | Chooser over all utilities and layouts. Uninstantiated picks create and borrow; instantiated picks borrow that instance. |
+| Mode    | Command               | Behavior                                                                                                                 |
+| ---     | ---                   | ---                                                                                                                      |
+| Default | borrow <util or layout> | Borrow hidden instance bound to this host; else existing hidden (chooser if several); else create and borrow.        |
+| New     | new <util or layout>  | Always create a fresh instance, then borrow it. Sibling of borrow; skips the reuse-hidden branch.                        |
+| No name | borrow                | Chooser over all utilities and layouts. Uninstantiated picks create and borrow; instantiated picks borrow that instance. |
 
-Layouts follow the same modes. `--new` on a layout creates fresh member instances.
+Layouts follow the same pattern. `new` on a layout creates fresh member instances.
 
 ### Resolution order (default mode)
 
@@ -195,18 +189,17 @@ On borrow, the borrowed pane's `@tum-host` is set to the current pane id, and th
 
 ## Flip-flop (hide / show)
 
-Flip-flop toggles a borrowed thing between shown and hidden. It is generic — it does not name a utility, it acts on a slot. The CLI command is `tum flip`: `tum flip <slot>` toggles by slot, `tum flip` toggles the focused borrowed pane, and `tum flip --interactive` opens the chooser for a host with several attached things.
+Flip-flop toggles a borrowed thing between shown and hidden. It is generic — it does not name a utility, it acts on a slot. The CLI command is `tum flip`: `tum flip <slot>` toggles by slot; `tum flip` (no slot) is context-aware — it toggles the focused borrowed pane, or opens the chooser when the host has several attached things.
 
 ### Slot keys
 
 Every borrowed thing — a utility instance, a layout group, or each member of a borrowed layout — gets a slot key, declared in its definition or auto-assigned on conflict. One slot is one flip-flop target. A layout's slot toggles all its members as a group; a member's slot toggles just that member.
 
 ### Shortcuts
-| Action             | Shortcut                          | Behavior                                                                                   |
-| ---                | ---                               | ---                                                                                        |
-| Toggle by slot     | `<prefix> H <slot>`               | Hide if shown, show if hidden. A layout slot toggles all members together.                 |
-| Toggle focused     | `<prefix> H`                      | From a focused borrowed pane: toggle just that pane.                                       |
-| Toggle via chooser | `<prefix> H` with `--interactive` | Open the chooser to pick which attached thing to toggle, for a host with several attached. |
+| Action           | Shortcut          | Behavior                                                                                              |
+| ---              | ---               | ---                                                                                                   |
+| Toggle by slot   | `<prefix> H <slot>` | Hide if shown, show if hidden. A layout slot toggles all members together.                          |
+| Toggle (context) | `<prefix> H`      | From a focused borrowed pane: toggle just that pane. From a host with several attached: chooser.      |
 
 - Hiding a layout member parks it in the hidden session but keeps its `@tum-layout`; re-showing the layout brings it back.
 - Geometry is captured at hide and restored at show.
@@ -220,7 +213,7 @@ Two distinct actions with different shortcuts. Hide is non-destructive and reach
 | Action        | What it does                                                              | State after                                         |
 | ---           | ---                                                                       | ---                                                 |
 | Hide (return) | `move-pane` to the hidden session; clear `@tum-host`; keep `@tum-layout`. | Pane alive, parked, still a layout member.          |
-| Close         | `tum close` → `kill-pane`.                                                | Pane and all its `@tum-*` options gone. No cleanup. |
+| Close         | close → `kill-pane`.                                                | Pane and all its `@tum-*` options gone. No cleanup. |
 
 - Close works in a layout: a closed member is gone from the group; the other members continue. The layout id on remaining members is unchanged.
 - There is no "layout instance" — the layout is just an id stamped on member panes. Closing a member does not affect the definition or other members.
@@ -236,6 +229,17 @@ Two distinct actions with different shortcuts. Hide is non-destructive and reach
 
 No confirmation — close is a simple, immediate `kill-pane`, mirroring tmuxake.
 
+### Target resolution (shared)
+
+`close`, `flip`, and `push`-from-host all answer the same question: *which borrowed pane does the user mean right now?* The resolution is identical, so it lives in one internal helper — `tum-target` (a `tum-state` function, not a user command):
+
+1. Is the focused pane itself borrowed? → act on it.
+2. Is the focused pane a host with exactly one borrowed thing? → act on that.
+3. Is it a host with several? → open the chooser.
+4. None of the above → nothing to do, or error.
+
+The chooser call lives inside `tum-target`, so the chooser is an internal decision — no command carries an `--interactive` flag. `borrow` keeps its own resolver (host-bound → hidden → create) because it can create, which the others cannot; its "pick among several hidden instances" step calls the same chooser.
+
 ---
 
 ## Push and pop
@@ -244,11 +248,11 @@ Push/pop is a separate command family — not bridged to layouts, save-layout, o
 
 | Action | Command    | Behavior                                                                                                                 |
 | ---    | ---        | ---                                                                                                                      |
-| Push   | `tum push` | Detach the focused borrowed pane onto a LIFO stack. Records geometry and push-seq; clears host. Pushed pane has no host. |
-| Pop    | `tum pop`  | Attach the highest-`@tum-push-seq` pane to the current host at its recorded geometry. Consumes it from the stack.        |
+| Push   | push      | Detach the focused borrowed pane onto a LIFO stack. Records geometry and push-seq; clears host. Pushed pane has no host. |
+| Pop    | pop       | Attach the highest-`@tum-push-seq` pane to the current host at its recorded geometry. Consumes it from the stack.        |
 
 - The stack is `list-panes -a` filtered by `@tum-pushed`, sorted by `@tum-push-seq` descending. Non-contiguous sequence numbers are fine — panes may be closed between pushes.
-- Push from the borrowed pane directly. From the host, present the chooser when more than one utility is borrowed.
+- Push from the borrowed pane directly. From the host, `tum-target` resolves the pane (chooser when more than one utility is borrowed).
 - Pop attaches at the geometry recorded at push time.
 - A user can compose a working set by pushing several utilities from anywhere, then popping them one by one into a host.
 
@@ -258,10 +262,10 @@ Push/pop is a separate command family — not bridged to layouts, save-layout, o
 
 Adopt an existing tmux pane as a utility.
 
-| Flavour | Command             | Behavior                                                                                                                                                                         |
-| ---     | ---                 | ---                                                                                                                                                                              |
-@| Anonymous | `tum import`        | Make the current pane a temporary utility. No file written. `@tum-source=imported-anon`, `@tum-util` set to an auto-generated name (`import-<pane-id>`) so the chooser can list it. Gone when closed or when the server dies. |
-| Named   | `tum import <name>` | Capture command, args, cwd, env (max fidelity, from `/proc/$pid/`) and write a `<name>.util` file. `@tum-source=imported-named`, `@tum-util=<name>`. Editable; a normal utility. |
+| Flavour   | Command        | Behavior                                                                                                                                                                         |
+| ---       | ---            | ---                                                                                                                                                                              |
+| Anonymous | import         | Make the current pane a temporary utility. No file written. `@tum-source=imported-anon`, `@tum-util` set to an auto-generated name (`import-<pane-id>`) so the chooser can list it. Gone when closed or when the server dies. |
+| Named     | import <name>  | Capture command, args, cwd, env (max fidelity, from `/proc/$pid/`) and write a `<name>.util` file. `@tum-source=imported-named`, `@tum-util=<name>`. Editable; a normal utility. |
 
 - Anonymous import is borrowable, hideable, and closeable like any utility, but is not saved.
 - Named import captures as much as possible; the resulting definition file is meant to be hand-edited to refine.
@@ -272,7 +276,7 @@ Adopt an existing tmux pane as a utility.
 
 - A layout is a named group of utilities. Borrowing a layout borrows all its members into the host window at their declared positions.
 - `tum borrow <layout>` (default mode): borrow an existing hidden group bound to this host if any; else an existing hidden group (chooser if several); else create one.
-- `tum borrow --new <layout>`: always create fresh member instances.
+- `tum new <layout>`: always create fresh member instances.
 - Members may anchor to the host or to another member, allowing arbitrary trees on one side of the host.
 - Each member gets its own slot for individual flip-flop; the layout group gets a slot for group flip-flop.
 - Hiding a member keeps `@tum-layout`; re-showing the layout brings it back.
@@ -289,7 +293,7 @@ Adopt an existing tmux pane as a utility.
 
 ## Chooser
 
-The `--interactive` flag routes any choice through an external chooser script via a defined API.
+When a command must choose among several candidates, it routes the choice through an external chooser script via a defined API. The chooser is implicit — there is no `--interactive` flag; the decision to invoke it is internal to each command.
 
 ### Contract
 
@@ -360,8 +364,9 @@ Every `tum` command, with its arguments. Behavior is defined in the sections abo
 
 | Command       | Arguments                   | Behavior                                                                                                                              |
 | ---           | ---                         | ---                                                                                                                                   |
-| borrow        | `[<util or layout>]`        | Attach beside the current host pane; create first if needed. Modes: default, `--new`, `--existing`, `--tag <tag>`, no-name (chooser). |
-| flip          | `[<slot>]`, `--interactive` | Toggle a borrowed thing by slot, or the focused pane, or via the chooser.                                                             |
+| borrow        | `[<util or layout>]`        | Attach beside the current host pane; create first if needed. Reuses a hidden instance bound to this host, else any hidden, else creates. No-name opens the chooser over all. |
+| new           | `[<util or layout>]`        | Always create a fresh instance and borrow it. Sibling of borrow; skips the reuse-hidden branch.                                       |
+| flip          | `[<slot>]`                  | Toggle by slot, or (no slot) the focused pane — or the chooser for a host with several attached. Context-aware.                       |
 | close         | (none — context-aware)      | `kill-pane` the focused borrowed pane, or the host's single borrowed thing, or chooser-pick among several.                            |
 | push          | (none)                      | Detach the focused borrowed pane onto the LIFO stack.                                                                                 |
 | pop           | (none)                      | Attach the top of the stack to the current host.                                                                                      |
@@ -373,7 +378,7 @@ Every `tum` command, with its arguments. Behavior is defined in the sections abo
 | popup         | (none)                      | Open the full interactive menu (every command reachable).                                                                             |
 | cheatsheet    | (none)                      | Open a popup listing every key binding.                                                                                               |
 | bindings tmux | (none)                      | Generate the tmux `bind-key` fragment from the `@tum-*` options.                                                                      |
-| tum-chooser   | `<prompt> <items> <out>`    | The external chooser script (the `--interactive` backend); fixed contract, not a `tum` subcommand.                                    |
+| tum-chooser   | `<prompt> <items> <out>`    | The external chooser script; fixed contract, not a `tum` subcommand.                                                                  |
 
 `tum popup`, `tum cheatsheet`, and `tum bindings tmux` are conveniences over the commands above; the keymap document defines the bindings they support.
 
@@ -387,6 +392,7 @@ Every `tum` command, with its arguments. Behavior is defined in the sections abo
 - The chooser is an external script; fzf is one implementation, not a dependency of the core. The core works without any chooser installed (commands that need a chooser fall back to erroring or to a numbered list).
 - All tmux interaction goes through one `tum-tmux` module wrapping `new-session`, `join-pane`, `move-pane`, `move-window`, and the rest. The rest of the code never calls `tmux` directly. tmux-version quirks, quoting, and pane-id verification live in one place.
 - All state read/write goes through one `tum-state` module that wraps pane-scope option get, set, and scan, so the encoding rules are implemented once.
+- A shared `tum-target` resolver (in `tum-state`) answers "which borrowed pane does the user mean?" for `close`, `flip`, and `push`-from-host: focused borrowed pane, else the host's single borrowed thing, else the chooser. The chooser is invoked inside it, so no command carries an `--interactive` flag.
 - Before borrow, the `command` path is checked to exist and be executable, so a bad definition fails with a clear message instead of launching a pane that dies at once.
 - Bash completion completes commands, utility names, and layout names.
 - Integration tests run against a private tmux server socket (`tmux -L tum-test -f /dev/null`), never the user's default server.

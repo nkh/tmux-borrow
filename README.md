@@ -33,8 +33,8 @@ The specification lives in `docs/` as flat Markdown files:
 
 | File                             | Contents                                                                                                                             |
 | ---                              | ---                                                                                                                                  |
-@| `docs/tmux-borrow-requirements.md` | The spec: core model, state representation, definitions, borrowing, flip-flop, hide/close, push/pop, import, layouts, chooser, status glyphs, listings, orphan handling, command summary, implementation constraints. |
-| `docs/tmux-borrow-keymap.md`     | The key-binding layer: every `tum` command reachable from the keyboard, generated from `@tum-*` options.                             |
+| `docs/tmux-borrow-requirements.md` | The spec: core model, state representation, definitions, borrowing, flip-flop, hide/close, push/pop, import, layouts, chooser, status glyphs, listings, orphan handling, command summary, implementation constraints. |
+| `docs/tmux-borrow-keymap.md`     | The key-binding layer: every `tum` command reachable from the keyboard, generated from `@tum-leader` (other keys remapped by editing the generated conf).                             |
 | `docs/user-guide.md`             | The end-user walkthrough: define a utility, borrow, hide/show, close, layouts, push/pop, import, chooser, glyphs, listings.          |
 | `docs/use-cases.md`              | Fifteen functional scenarios that test whether the requirements hold together, each mapped to the requirement sections it exercises. |
 | `docs/command-surface-audit.md`  | An audit of every command, flag, option, and definition key, with proposals to shrink the surface.                                   |

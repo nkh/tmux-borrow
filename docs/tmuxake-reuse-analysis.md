@@ -37,7 +37,7 @@ These tmuxake ideas are in tmux-borrow's requirements, reimplemented in tmux-bor
 | Close is just `kill-pane`  | No teardown, no cleanup. State dies with the pane.                                                                                         |
 | Geometry memory            | Width and height are captured at hide (`@tum-geometry`) and restored on show.                                                              |
 | Status glyphs              | `÷` for a host with borrowed things, `§` for a borrowed pane, `!` for an orphan. Configurable, tmuxake-like defaults.                      |
-| Orphan detection           | No proactive hooks. Dead host leaves utility marked `!` until re-borrow or close. `tum check` lists orphans. Full-dead panes auto-removed. |
+| Orphan detection           | No proactive hooks. Dead host leaves utility marked `!` until re-borrow or close. `check` lists orphans. Full-dead panes auto-removed. |
 | Import                     | Adopt an existing pane as a utility. tmux-borrow adds a named variant that captures command/args/cwd/env to a definition file.             |
 | Push / pop                 | LIFO stack for cross-session hand-off. Extended to multi-slot (non-contiguous seqs, since panes may be closed between pushes).             |
 
@@ -50,9 +50,9 @@ tmux-borrow takes these tmuxake concepts and generalizes them.
 | tmuxake concept               | tmux-borrow extension                                                                                                           |
 | ---                           | ---                                                                                                                             |
 | One side-pane per root pane   | Multiple utilities and multiple layouts may attach to one host simultaneously.                                                  |
-| A side-pane is always a shell | A utility is any named command with a definition file (command, args, cwd, env, tags, slot).                                    |
+| A side-pane is always a shell | A utility is any named command with a definition file (command, args, cwd, env, slot).                                    |
 | No grouping                   | Layouts group utilities; borrowing a layout borrows all members; members anchor to the host or to each other.                   |
-| One instance per root         | Multiple instances of one utility are allowed. Borrow modes (`--new`, `--existing`) control whether to create or reuse.         |
+| One instance per root         | Multiple instances of one utility are allowed. `borrow` reuses an existing hidden instance (else creates); `new` always creates.         |
 | Window name encodes state     | tmux-borrow uses pane-scope `@tum-*` options instead — more robust than parsing a string, and they survive `move-pane` cleanly. |
 | PID-based identity            | Pane id (`%N`) for binding — stable, never reused, no `kill -0`. PID read ephemerally at import only.                           |
 | Single toggle key             | Slot keys: every borrowed thing (utility, layout, or layout member) gets a slot for individual or group flip-flop.              |
@@ -65,7 +65,7 @@ tmux-borrow takes these tmuxake concepts and generalizes them.
 
 | Idea                         | Why skipped                                                                                                                                         |
 | ---                          | ---                                                                                                                                                 |
-| Window-name-as-state         | Pane-scope `@tum-*` options are more robust (no string parsing, survive moves cleanly) and carry richer fields (layout id, tags, source, geometry). |
+| Window-name-as-state         | Pane-scope `@tum-*` options are more robust (no string parsing, survive moves cleanly) and carry richer fields (layout id, source, geometry). |
 | PID as the binding key       | PIDs recycle; pane ids are monotonic and never reused. Pane id is strictly better for binding and orphan detection.                                 |
 | `kill -0` orphan detection   | With pane id, the check is "stored pane id in `list-panes -a`?" — no process probing, no PID-recycling risk.                                        |
 | Env via show-env + send-keys | Fragile (tmuxake spells out keys to dodge quoting). tmux-borrow sets env at launch via `tum-tmux`.                                                  |
@@ -90,8 +90,8 @@ These are tmux-borrow's own contributions, not from tmuxake:
 
 - **Named utilities and layouts** as flat `key:value` files, filename as name, no collisions.
 - **Layouts** as groups of utilities with a member-anchoring DSL.
-- **Multiple instances** with `--new` / `--existing` borrow modes and host-bound-first resolution.
-- **A chooser API** (`--interactive`, `tum-chooser <prompt> <items_file> <output_file>`) that decouples the selection UI from the core — any script following the contract is a drop-in.
+- **Multiple instances** with `tum borrow` (reuse-or-create) and `tum new` (always-create), host-bound-first resolution.
+- **A chooser API** (`tum-chooser <prompt> <items_file> <output_file>`) that decouples the selection UI from the core — any script following the contract is a drop-in. The chooser is implicit: commands invoke it internally when a choice is needed, so there is no `--interactive` flag.
 - **Slot keys** for individual and group flip-flop across multiple attached things.
 - **Named import** that captures process fidelity to an editable definition file.
 - **`tum ls`** as a global view of all instances across all sessions.
