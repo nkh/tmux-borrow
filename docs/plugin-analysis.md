@@ -3,7 +3,7 @@
 This is an architectural comparison, not a dependency recommendation. Use native tmux commands through a small adapter. Do not inherit another project's assumptions without reviewing its current source, license, dependencies, and maintenance status.
 
 | Project              | Useful capability                     | Gap                                              | Suggested use                    |
-|----------------------|---------------------------------------|--------------------------------------------------|----------------------------------|
+| ---                  | ---                                   | ---                                              | ---                              |
 | tmuxake              | Utility/side-pane management ideas    | User reports one-extra-pane limitation           | Inspect selected ideas/code only |
 | tmux-sessionist      | Pane/window movement between sessions | No registry, instance model, prompts, or layouts | Study command patterns           |
 | tmux-resurrect       | Save/restore sessions, windows, panes | Broad tmux state, not borrowed-only resources    | Persistence reference only       |

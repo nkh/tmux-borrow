@@ -4,228 +4,349 @@
 
 ### Problem
 
-Power users keep file managers, log followers, REPLs, database consoles, monitors, debuggers, and build watchers running inside tmux. They want to move an already-running utility into the window where they are working and later send it back — without restarting the process and losing its state.
+Power users keep file managers, log followers, REPLs, database consoles, monitors, and debuggers running inside tmux. They want to move an already-running utility into the window where they are working, hide it out of the way, bring it back, and close it — all with single keys — without restarting the process and losing its state. They want to assemble groups of utilities into named layouts, hand a utility off to another session and back, and adopt any existing pane as a temporary utility.
 
 Users want to save and restore recurring arrangements based on their current setup, and to have a single interactive interface for managing all of them.
 
 Users want to start utilities with a saved configuration, including required arguments, working directory, and lifecycle policy and layout. Some tmux plugins already offer this, but they do not provide a unified interface for managing multiple utilities.
 
-****### Goal
+### Goal
 
-A small orchestration layer over tmux to:
+A small orchestration layer over tmux that keeps all state in tmux itself (no external database), borrows utilities and layouts into any host pane, toggles them in and out with slot-key shortcuts, closes them by killing the pane, and composes working sets with push/pop and import. tmux-borrow is a superset of tmuxake's side-pane model: the same hide/show/close flow, generalized to named utilities, layouts, multiple instances, import, and a pluggable chooser.
 
-- Register definitions and launch registered or ad-hoc utilities.
-- Support multiple instances of one definition.
-- Keep instances in managed home sessions/windows when not borrowed.
-- Borrow one pane into the current window or move a whole managed window.
-- Associate a borrowed pane with a host pane for manager-mediated moves.
-- Borrow several utilities or arrange them in separate windows.
-- Save/restore/clone layouts containing only managed utility panes.
-- Prompt for missing arguments and support named argument presets.
+Specifically:
+
+- Define utilities and layouts as flat files and borrow them beside the current host pane.
+- Support multiple instances of one utility.
+- Park borrowed panes in a hidden session and bring them back without restarting the process.
+- Toggle any borrowed thing in and out with single-key flip-flop via slot keys.
+- Push borrowed panes onto a stack and pop them into any host to compose working sets.
+- Import any existing tmux pane as a temporary or named utility.
+- Borrow layouts (groups of utilities) with per-member and group slots.
+- Prompt for missing required arguments before mutating tmux.
+- Keep all state in tmux pane-scope options — no external database.
+- Route interactive choices through a pluggable external chooser.
 - Keep the implementation small and split into independent commands.
 
 ### Non-goals
 
 - Reimplement tmux navigation, zoom, resizing, splitting, or session management.
-- Display one tmux pane in multiple windows simultaneously (a pane exists in one window at a time).
-- General-purpose process checkpointing, migration, or suspension.
-- Manage ordinary user panes as utility resources.
+- Display one pane in multiple windows simultaneously (a pane exists in one window at a time).
+- General-purpose process checkpointing or migration.
+- Manage ordinary panes as utilities unless explicitly imported.
 
 ---
 
 ## Glossary
 
-| Term                | Meaning                                                                                                                               |
-| ---                 | ---                                                                                                                                   |
-| Utility             | A long-running command managed as a movable tmux resource (`htop`, `lazygit`, a log tail, REPL, file manager, debugger).              |
-| Definition          | Saved configuration describing how to start a utility (command, args, scope, home, lifecycle).                                        |
-| Instance            | One running occurrence of a utility. One definition may have many instances.                                                          |
-| Home session/window | The managed location where an instance lives when not borrowed. A utility occupies a full window in its home session.                 |
-| Working window      | The tmux window where the user is doing other work, into which utilities are borrowed.                                                |
-| Borrow              | Move an existing running pane or window into a working context. The process is moved, not restarted.                                  |
-| Return              | Move a borrowed resource back to its recorded home.                                                                                   |
-| Host pane           | The pane beside which a utility is borrowed. A manager-recorded association, not a tmux parent/child link.                            |
-| Scope               | Whether an instance is `shared` (reusable across windows, one borrow at a time) or `per_window` (tied to one working window).         |
-| Layout              | A named recipe containing only manager-owned borrowed panes and their arrangement. Ordinary panes are never part of a layout.         |
-| Ordinary pane       | A pane not owned or tracked by the manager. The manager must never move, kill, or serialize it.                                       |
-| Selector            | The interactive popup interface (fzf-based, with a numbered fallback) for choosing utilities, instances, panes, layouts, and actions. |
-| Workspace           | The project context, derived from the shell's current directory, used to auto-associate per-window instances and suggest layouts.     |
-| Label               | A free-form tag on an instance, independent of its definition, marking why this particular copy exists.                               |
-| Category            | A tag on a definition or layout (`monitor`, `files`, `db`, `repl`) used to group or filter listings.                                  |
-| Stale record        | An instance record whose recorded pane or PID no longer matches live tmux.                                                            |
-| Environment profile | A named, switchable set of environment variables applied at launch on top of a definition's per-utility environment.                  |
+| Term              | Meaning                                                                                                                   |
+| ---               | ---                                                                                                                       |
+| Utility           | A single-pane runnable command managed as a movable tmux resource (`htop`, `lazygit`, a log tail, REPL). Always one pane. |
+| Layout            | A named group of utility references and their arrangement. Contains multiple utilities; a utility is never multi-pane.    |
+| Instance          | One running pane of a utility. One definition may have many instances.                                                    |
+| Definition        | A saved configuration file describing a utility or a layout. Flat `key:value`; the filename is the name.                  |
+| Host pane         | The pane beside which a utility or layout is borrowed. Recorded on the borrowed pane as a pane-scope option.              |
+| Borrow            | Attach a utility or layout instance beside the current host pane, creating it first if it does not exist.                 |
+| Hide (return)     | Park a borrowed pane in the hidden session, clearing its host binding. Non-destructive; the pane stays alive.             |
+| Show              | Bring a hidden pane back beside its host, restoring its geometry.                                                         |
+| Flip-flop         | Toggle a borrowed thing between shown and hidden via its slot key.                                                        |
+| Close             | `kill-pane`. Destroys the pane and all its state. Context-aware: works from the borrowed pane or the host.                |
+| Push / pop        | LIFO stack: push detaches a borrowed pane onto the stack (no host); pop attaches the top to the current host.             |
+| Import            | Adopt an existing tmux pane as a utility. Anonymous (temporary) or named (saved to a definition file).                    |
+| Hidden session    | The single shared session where hidden and pushed panes park. Configurable name.                                          |
+| Slot              | A single-character key assigned to a borrowed thing (utility, layout, or layout member) for flip-flop.                    |
+| Chooser           | The external interactive selector script, called via a defined API. `--interactive` routes through it.                    |
+| Pane-scope option | A tmux user option (`@tum-*`) set on a pane with `-p`. The state store; survives `move-pane`; dies with the pane.         |
+| Orphan            | A half-dead binding: the host pane is gone but the utility pane is alive. Marked `!`, left in place.                      |
+| Tag               | A free-form marker on a utility definition, usable as a borrow selector.                                                  |
 
 ---
 
 ## Core model
 
-These are the fundamental invariants the rest of the requirements build on.
-
-- A definition may accept positional arguments and named options; one definition may create many instances.
-- Each instance is assigned a home session (manually or by policy) and occupies a full tmux window there.
-- Borrowing moves a pane or window without restarting its process. A pane exists in one window at a time.
-- Any eligible pane in any session can be borrowed — not just managed instances. Manager-owned panes retain identity and return metadata; ordinary panes can be borrowed and returned.
-- Multiple borrowed utilities may coexist in one working window, including from different home sessions.
-- Session names are labels, not keys. Two sessions may share a visible name; the manager distinguishes them by stable internal IDs.
-- The manager owns only what it can prove it owns: a record, a marker, and a verified live pane identity.
+- State lives entirely on panes as pane-scope `@tum-*` user options. No external database, no index file. The hidden session's pane list (queried via `tmux list-panes -a`) is the complete state.
+- A utility is always one pane. A layout is a group of utilities; borrowing a layout borrows all its members into the same host window.
+- Borrowing moves a pane with `join-pane`/`move-pane`; the process is moved, not restarted.
+- Multiple utilities and multiple layouts may be attached to one host simultaneously.
+- Multiple instances of one utility are allowed and wanted.
+- Closing a pane (kill-pane) kills its state — full-dead cleanup is automatic. Half-dead (host gone, utility alive) is an orphan, left in place and marked.
+- The manager owns only what it can prove it owns: a `@tum-*` pane-scope option and a verified live pane id.
 
 ---
 
-***## Functional requirements
+## State representation
 
-| Requirement          | What it is for                                 | How it could be met                                                          |
-| ---                  | ---                                            | ---                                                                          |
-| Register definitions | name and store utility configs once            | TOML `[utility.NAME]`; `tum define add --wizard`                             |
-| Launch utility       | start a registered utility in its managed home | `tum run NAME` creates the home window and launches argv                     |
-| Ad-hoc launch        | run a one-off command with full tracking       | `tum run --name X -- …`; gets a session and stable ID                        |
-| Multiple instances   | run several copies of one definition           | each `tum run` creates a new instance with its own ID                        |
-| Borrow pane          | bring a running process beside you, no restart | `tum borrow` uses `join-pane` to move the existing pane                      |
-| Re:wturn pane          | send a borrowed pane back to its home          | `tum return` moves it home and restores appearance                           |
-| instances       | see what runs, where, and in what state        | `tum list` shows ID, definition, state, home/current                         |
-| Selection            | resolve which instance an action targets       | auto-select if unique; `--instance ID` or fzf if ambiguous                   |
-| fzf selector         | search and pick instances interactively        | `--fzf` flag; multi-select only for batch-safe commands                      |
-| Required arguments   | avoid launching with missing context           | prompt before move; fail non-interactively with names                        |
-| Safe argv            | prevent injection and argument-boundary loss   | store as array; never `eval`; no `sh -c` unless user picks                   |
-| Stop instance        | terminate a managed instance from anywhere     | `tum stop`; targets the instance, never host or ordinary pane                |
-| Exit policy          | control what happens when the process exits    | `wait` (default), `shell`, `close`, or `leave`                               |
-| Save layout          | capture a borrowed arrangement for reuse       | `tum layout save` records only manager-owned panes                           |
-| Restore layout       | rebuild without harming ordinary panes         | incremental add; never wholesale `select-layout` mixed                       |
-| Config editor        | edit config without knowing its path           | `tum config edit` opens it in `$EDITOR`                                      |
-| Layout editor        | edit a named layout without its path           | `tum layout edit NAME` opens it in `$EDITOR`                                 |
-| Wizard/template      | make registration approachable                 | `--wizard` (readline Q&A) or `--template` (append block)                     |
-| Clone layout         | reuse for another project, no source moves     | `tum layout clone SRC DEST`; shared reuse, per-window create                 |
-| Per-window instances | tie an instance to one window                  | stable workspace record; create one if none exists                           |
-| Shared instances     | reuse one instance across windows              | one borrow at a time; enforced transactionally                               |
-| Window borrow        | move a complete managed window                 | `tum borrow --as window` uses `move-window`                                  |
-| Host association     | link borrowed pane to its host                 | record host pane ID; reconcile on next manager op                            |
-| Lifecycle hooks      | react to idle/borrow/return/stop               | optional executable+argv hooks; failures reported                            |
-| Temporary appearance | mark borrowed panes visually                   | snapshot styles before borrow; restore on return                             |
-| Argument presets     | save named argument sets                       | `[preset.UTILITY.NAME]` blocks; referenced by layouts                        |
-| Bash completion      | complete commands and names                    | `tum-completion` helper sourced from `.bashrc`                               |
-| Tree selector        | show sessions/windows/instances                | fzf tree view; optional, only if justified                                   |
-| Argument save policy | control what a layout stores                   | `omit` (default), `preset`, or `values` (non-secrets)                        |
-| Recovery             | reconcile after interruption                   | `tum doctor` vs live tmux; offers repair, no silent discard                  |
-| Manage current pane  | adopt an existing pane as a utility            | `tum manage` builds a definition and instance from the active pane's command |
-| Validate executable  | fail early on a bad command                    | `tum run` checks the path exists and is executable before launching          |
-| Workspace detection  | auto-associate without naming                  | infer the current workspace from the shell's cwd                             |
-| Environment profiles | switch env sets by name                        | named profiles applied on top of the per-utility env                         |
+Each utility pane carries its state in pane-scope user options:
+
+| Option          | Meaning                                                            |
+| ---             | ---                                                                |
+| `@tum-util`     | Utility name (the definition filename).                            |
+| `@tum-host`     | Host pane id; empty when hidden or pushed.                         |
+| `@tum-layout`   | Layout id; empty for a standalone utility.                         |
+| `@tum-slot`     | Slot key for flip-flop.                                            |
+| `@tum-geometry` | Last-used width and height, captured at hide, restored on show.    |
+| `@tum-tags`     | Comma-separated tags from the definition.                          |
+| `@tum-source`   | `defined`, `imported-anon`, or `imported-named`.                   |
+| `@tum-pushed`   | Present (with `@tum-push-seq`) when the pane is on the push stack. |
+
+- Pane-scope options survive `move-pane` and `join-pane` across sessions. They die with the pane, so a killed utility leaves nothing to clean up.
+- Hidden panes park as windows in the hidden session. Their identity is the pane options, not the window name; the window name is cosmetic.
+- The host side records attached slots in a window-scope option on the host window, so hide/close from the host resolves without scanning panes.
+- No PID is stored as a binding key. PID is read ephemerally at import time only, to capture the pane's command, cwd, and environment.
 
 ---
 
-## Instances and listings
+## Definitions
 
-**Purpose.** Once several utilities are running, the user needs to find the right one fast and trust that what the list says matches reality.
+- One file per utility (`<name>.util`) and one file per layout (`<name>.layout`), in one directory: `~/.config/tum/` (`XDG_CONFIG_HOME` respected). Utilities and layouts share the directory.
+- Flat `key:value` format, no sections, no hierarchy — simple to parse in bash.
+- The filename is the name. There is no `name:` field inside the file, so collisions are impossible.
+- Layouts reference utility files by name; no repetition.
 
-A single `tum list` nests live instances under their definitions, so one view answers both "what can I run?" and "what's running?". The list can be narrowed by definition, state, session, workspace, label, or category, so common questions — all borrowed instances, everything in session `dev`, the `per_window` instances for this window — are a filter away.
+### Utility file keys
 
-Each instance shows its current and home location in human-readable `session:window` form, its uptime, and the timestamps of its most recent borrow and return. Uptime tells you whether a home instance is the long-lived one you expected or a quiet restart; the borrow and return times reveal whether a shared instance is actually used and surface reap candidates that have been idle for weeks. The list can be sorted by recent activity on request.
+| Key       | Required | Meaning                                         |
+| ---       | ---      | ---                                             |
+| `command` | yes      | Executable path or name.                        |
+| `args`    | no       | Arguments to the command.                       |
+| `cwd`     | no       | Working directory.                              |
+| `env`     | no       | Key=value pairs applied at launch.              |
+| `tags`    | no       | Comma-separated tags.                           |
+| `slot`    | no       | Default slot key; auto-assigned on conflict.    |
+| `on_exit` | no       | `wait` (default), `shell`, `close`, or `leave`. |
 
-Free-form labels (`prod`, `scratch`, `debug-repro`) mark why a particular copy exists, independent of its definition. This answers the question definitions can't: of five `ranger` copies, which one is tied to the incident. Definitions carry categories (`monitor`, `files`, `db`, `repl`) for grouping and filtering; labels on instances are the orthogonal, per-copy marker, especially useful for ad-hoc instances that have no meaningful name.
+### Layout file keys
 
-Frequently used instances can be pinned so they sort to the top, survive a "hide inactive" filter, and are never swept by cleanup. Rarely-used definitions can be hidden from the quick-borrow picker while still launchable explicitly by name — useful for tools that exist only as layout members. From the list, starting a second copy of a definition (a second `ranger` rooted elsewhere) needs no retyping.
+| Key         | Required | Meaning                                                      |
+| ---         | ---      | ---                                                          |
+| `layout_id` | no       | Layout id stamped on member panes. Defaults to the filename. |
+| `members`   | yes      | List of member entries (see DSL).                            |
 
-The list must reflect reality. Before `tum run`, the `command` path is checked to exist, be executable, and not be a directory, so a bad definition fails with a clear message instead of launching a pane that dies at once. Instance records whose recorded pane or PID no longer match live tmux — a process that died unnoticed, a restarted server, a reassigned ID — are surfaced as `stale` or `unknown` rather than letting the user act on bad data. When a borrowed instance's host pane is closed (window closed, pane killed) while the association still points at it, the association is flagged as orphaned and reconciled on the next manager operation.
+### Layout DSL
 
----
+Each member entry is one line:
 
-## Borrowing
+```
+<util-name>: anchor=<host|member-name>, side=<right|left|top|bottom>, size=<N%|Nc>
+```
 
-**Purpose.** Borrow is the central gesture; it should land the utility where and how the user wants without producing a broken pane.
-
-A borrow can split the host window vertically or horizontally, set per-borrow or per-definition, so a wide log tail splits sideways while a tall REPL splits below. The borrowed pane's initial size can be set as a percentage (the file manager takes 30%, not 50%) per-borrow or per-definition; a 50/50 default wastes space for tools that need little and starves tools that need a lot, and setting it once per definition makes every later borrow land right. If the target window is too narrow or short for the pane to be usable, the borrow warns or refuses rather than producing a tiny broken pane.
-
-When a target window is needed and the name is not given, the user picks it from an fzf list of candidate sessions and windows with live panes previewed, instead of typing a forgettable, non-unique name. An ordinary pane the user already has running can be adopted into the manager with `tum manage`, which registers the active pane as a utility — creating a definition and instance record from its current command and arguments — so it can be borrowed and returned like any other.
+- `anchor` defaults to `host`. A member may anchor to another member, allowing two panes on the same side of the host (for example, editor right of host, logs below editor).
+- `side` is required.
+- `size` is a percentage of the anchor or a cell count; optional.
 
 ---
 
 ## Arguments and configuration
 
-**Purpose.** Utilities need configurable launch behavior (command, args, working directory, scope, lifecycle, colors, environment). Users must be able to set this once in a file, override it per-launch from the CLI, and pass extra arguments to the utility itself — all without the manager re-parsing anything through a shell.
+**Purpose.** Utilities need configurable launch behavior — command, arguments, working directory, environment, and exit policy — set once in the definition file and overridable per-borrow from the CLI, all without the manager re-parsing anything through a shell.
 
-- Definitions and layouts are human-edited.
-- Missing required arguments are prompted in declaration order. For a layout restore, all missing values are collected before any tmux mutation. In non-interactive mode, the command fails with the names of the missing values.
-- Secret values are supplied interactively or via a secret provider, never stored in config, layouts, or logs. Secret prompts read without echoing, like `read -s`.
-- A definition may supply default values for optional arguments, used when no higher-precedence source provides one, so `tum run logs` just works. CLI arguments — after `--`, or via named options — override those defaults per the documented precedence chain; this is what makes ad-hoc variation possible without a new definition. Ad-hoc launches still accept manager options before `--` (`--name`, `--cwd`, `--instance-policy`), defaulting the rest from config, so ad-hoc does not mean unmanaged.
-- On validation, unknown config keys (a typo like `instnace_policy`) are reported rather than silently ignored.
-- A definition can declare a per-utility key/value environment map applied to its process at launch, scoping tweaks like `PAGER=cat` to one tool. On top of that, named environment profiles (`dev`, `staging`, `prod`) let a utility switch a whole env set — different DB creds, say — without editing the definition. Secrets in a profile still go through the secret provider, never the profile file.
-
----
-
-## Interactive management
-
-**Purpose.** Interactive management is a major project feature, not an afterthought. But tmux already consumes a prefix key, so the project must avoid demanding a large new family of memorized key combinations.
-
-**How it could work.**
-
-- One popup entry point (`tum popup`) with a compact action list: borrow, return, manage/list instances, start utility, restore/save layout, edit config, diagnostics. Each action delegates to the same CLI command used in scripts — the popup is a control surface, not a second command language. Anything doable in the popup is scriptable, and a CLI fix fixes the UI too.
-- fzf is the primary searchable selector when installed; it shows definition, instance ID suffix, state, and current/home location. Multi-select is enabled only for batch-safe actions (batch borrow/return), never for destructive singletons like stop. Without fzf, a numbered readline selector is the fallback, and the core CLI works without it.
-- A small number of tmux bindings open the popup. The project does not compete with tmux's navigation, resize, zoom, copy-mode, or window-management bindings.
-- Collect all required argument prompts before any batch move or layout restore. Cancelling a prompt leaves tmux state unchanged.
-- The popup's width and height are configurable (a percentage of the window or fixed values), so it fits both a large monitor and a laptop.
-- A CLI remains available for scripting and direct use; the popup calls CLI commands, never re-implementing them. Each subcommand has a focused `--help` page, generated from metadata, rather than only a global dump.
+- Definitions are human-edited flat `key:value` files (see Definitions). Layouts reference utilities by name and carry no arguments of their own.
+- Missing required arguments are prompted in declaration order. For a layout borrow, all missing values are collected before any tmux mutation. In non-interactive mode, the command fails with the names of the missing values.
+- Secret values are supplied interactively or via a secret provider, never stored in definition files, layouts, or logs. Secret prompts read without echoing, like `read -s`.
+- A definition may supply default `args`; extra arguments passed after `--` on the command line override or extend them, so a one-off variation does not require a new definition file.
+- The `cwd` and `env` keys are applied at launch; CLI flags override them per-borrow.
+- On validation, unknown definition keys (a typo like `arg`) are reported rather than silently ignored.
+- Safe argv: arguments are stored and launched as an ordered array, so argument boundaries are preserved. No `eval`, no `sh -c` unless the user explicitly selects a shell as the executable.
 
 ---
 
-## Appearance
+## Borrowing
 
-**Purpose.** Borrowed panes can be visually distinguishable so the user knows at a glance which panes are borrowed and what kind they are — but color must be optional and must not be required to understand state.
+Borrow is the primary action: attach a utility or layout beside the current host pane, creating it first if it does not exist.
 
-**How it could work.**
+### Modes
 
-- A borrowed pane's background can be set per-definition, per-launch, or per-instance: `tum color set --instance ID '#263238'`.
-- Color changes are scoped to the borrowed pane only and restored or cleared when the resource returns home, unless explicitly configured as persistent. The manager snapshots the original pane options before borrow and restores them on return.
-- The implementation accounts for terminal and tmux color capabilities across supported versions.
-- An opt-in tmux status-line segment shows a compact manager summary — "2 borrowed", or the active window's borrowed utilities — so the borrow state is ambient without opening the popup.
+| Mode     | Command                        | Behavior                                                                                                                 |
+| ---      | ---                            | ---                                                                                                                      |
+| Default  | `tum borrow <util>`            | Borrow hidden instance bound to this host; else existing hidden (chooser if several); else create and borrow.            |
+| New      | `tum borrow --new <util>`      | Always create a fresh instance, then borrow it.                                                                          |
+| Existing | `tum borrow --existing <util>` | Only borrow an existing instance; error or chooser if none.                                                              |
+| By tag   | `tum borrow --tag <tag>`       | Borrow by tag; resolution as default mode.                                                                               |
+| No name  | `tum borrow`                   | Chooser over all utilities and layouts. Uninstantiated picks create and borrow; instantiated picks borrow that instance. |
+
+Layouts follow the same modes. `--new` on a layout creates fresh member instances.
+
+### Resolution order (default mode)
+
+1. An instance already bound to this host (`@tum-host` equals the current pane id) — borrow it.
+2. Else, hidden instances of this utility exist — borrow one (chooser if several).
+3. Else, create an instance and borrow it.
+
+### Host binding
+
+On borrow, the borrowed pane's `@tum-host` is set to the current pane id, and the host window records the slot. On hide or push, `@tum-host` is cleared.
+
+---
+
+## Flip-flop (hide / show)
+
+Flip-flop toggles a borrowed thing between shown and hidden. It is generic — it does not name a utility, it acts on a slot.
+
+### Slot keys
+
+Every borrowed thing — a utility instance, a layout group, or each member of a borrowed layout — gets a slot key, declared in its definition or auto-assigned on conflict. One slot is one flip-flop target. A layout's slot toggles all its members as a group; a member's slot toggles just that member.
+
+### Shortcuts
+| Action             | Shortcut                          | Behavior                                                                                   |
+| ---                | ---                               | ---                                                                                        |
+| Toggle by slot     | `<prefix> H <slot>`               | Hide if shown, show if hidden. A layout slot toggles all members together.                 |
+| Toggle focused     | `<prefix> H`                      | From a focused borrowed pane: toggle just that pane.                                       |
+| Toggle via chooser | `<prefix> H` with `--interactive` | Open the chooser to pick which attached thing to toggle, for a host with several attached. |
+
+- Hiding a layout member parks it in the hidden session but keeps its `@tum-layout`; re-showing the layout brings it back.
+- Geometry is captured at hide and restored at show.
+
+---
+
+## Hide and close
+
+Two distinct actions with different shortcuts. Hide is non-destructive; close is destructive.
+
+| Action        | What it does                                                              | State after                                         |
+| ---           | ---                                                                       | ---                                                 |
+| Hide (return) | `move-pane` to the hidden session; clear `@tum-host`; keep `@tum-layout`. | Pane alive, parked, still a layout member.          |
+| Close         | `kill-pane`.                                                              | Pane and all its `@tum-*` options gone. No cleanup. |
+
+- Close works in a layout: a closed member is gone from the group; the other members continue. The layout id on remaining members is unchanged.
+- There is no "layout instance" — the layout is just an id stamped on member panes. Closing a member does not affect the definition or other members.
+- Close is context-aware (see below); hide is slot-keyed (via flip-flop) or focused.
+
+### Close (context-aware)
+
+| Focused pane                        | Action                                 |
+| ---                                 | ---                                    |
+| A borrowed pane                     | Close it.                              |
+| A host with one borrowed thing      | Close that thing.                      |
+| A host with several borrowed things | Open the chooser; close the selection. |
+
+No confirmation — close is a simple, immediate `kill-pane`, mirroring tmuxake.
+
+---
+
+## Push and pop
+
+Push/pop is a separate command family — not bridged to layouts, save-layout, or any other command.
+
+| Action | Command    | Behavior                                                                                                                 |
+| ---    | ---        | ---                                                                                                                      |
+| Push   | `tum push` | Detach the focused borrowed pane onto a LIFO stack. Records geometry and push-seq; clears host. Pushed pane has no host. |
+| Pop    | `tum pop`  | Attach the highest-`@tum-push-seq` pane to the current host at its recorded geometry. Consumes it from the stack.        |
+
+- The stack is `list-panes -a` filtered by `@tum-pushed`, sorted by `@tum-push-seq` descending. Non-contiguous sequence numbers are fine — panes may be closed between pushes.
+- Push from the borrowed pane directly. From the host, present the chooser when more than one utility is borrowed.
+- Pop attaches at the geometry recorded at push time.
+- A user can compose a working set by pushing several utilities from anywhere, then popping them one by one into a host.
+
+---
+
+## Import
+
+Adopt an existing tmux pane as a utility.
+
+| Flavour   | Command             | Behavior                                                                                                                           |
+| ---       | ---                 | ---                                                                                                                                |
+| Anonymous | `tum import`        | Make the current pane a temporary utility. No file written. `@tum-source=imported-anon`. Gone when closed or when the server dies. |
+| Named     | `tum import <name>` | Capture command, args, cwd, env (max fidelity, from `/proc/$pid/`) and write a `<name>.util` file. Editable; a normal utility.     |
+
+- Anonymous import is borrowable, hideable, and closeable like any utility, but is not saved.
+- Named import captures as much as possible; the resulting definition file is meant to be hand-edited to refine.
 
 ---
 
 ## Layouts
 
-A layout is a named recipe for assembling manager-owned utility panes. It is not a snapshot of the entire tmux window. Ordinary user panes are not layout members and must remain untouched; recording only manager-owned panes is the defining property of a layout and the safety invariant that keeps a restore from overwriting the user's actual work.
+- A layout is a named group of utilities. Borrowing a layout borrows all its members into the host window at their declared positions.
+- `tum borrow <layout>` (default mode): borrow an existing hidden group bound to this host if any; else an existing hidden group (chooser if several); else create one.
+- `tum borrow --new <layout>`: always create fresh member instances.
+- Members may anchor to the host or to another member, allowing arbitrary trees on one side of the host.
+- Each member gets its own slot for individual flip-flop; the layout group gets a slot for group flip-flop.
+- Hiding a member keeps `@tum-layout`; re-showing the layout brings it back.
+- Closing a member removes it from the group; the layout id on survivors is unchanged. There is no layout instance to repair.
 
-### Contents
+### Borrowing a layout (restore rules)
 
-A layout records utility references, instance policy, pane arrangement relationships among managed panes, destination mode (`current_window` or `separate_window`), optional size proportions, temporary appearance settings, and argument persistence policy. The first version needs a simple ordered split tree, not every possible tmux layout encoding. Proportions (not absolute cell counts) are reapplied on restore so a layout is immediately usable at any window size; they are optional, since some users want panes to fit available space.
-
-### Restore
-
-Resolve all definitions, instances, conflicts, and missing arguments before changing tmux. Add managed panes incrementally into the current window, or create dedicated manager-owned windows. Do not apply a whole-window `select-layout` to a mixed window if that would resize ordinary panes. If a utility is already borrowed, report the conflict rather than silently stealing it.
-
-### Clone
-
-Cloning creates a new layout record and never moves source resources. `shared` items retain shared-instance policy; `per_window` items resolve or create an instance for the destination window; `new_instance` always creates one; `existing_instance` reuses only the explicitly identified instance if valid. Prompt for destination-specific arguments. Do not copy secrets.
-
-### Naming and finding layouts
-
-Each layout has a human name and an optional free-text description, shown in the list and selector, so `tum layout restore NAME` is unambiguous and "which layout was that?" has an answer. Layouts can be tagged by project type (`web`, `data`, `ops`) so the selector can filter to those that fit the current project. The list sorts by most-recently-restored first, since recency beats alphabetical for picking the layout you probably want.
-
-### Saving arguments
-
-Offer `omit` (default), `preset` (named preset reference), or `values` (explicitly approved non-secret values). Secret arguments cannot use `values`.
+- Resolve all member definitions, missing arguments, and conflicts before changing tmux.
+- Add member panes incrementally beside the host and beside anchoring members. Never apply a whole-window `select-layout` to the host window if that would resize ordinary panes.
+- If a member utility is already borrowed elsewhere, report the conflict rather than silently stealing it.
+- Collect every required argument before the first `join-pane`; a cancelled prompt leaves tmux state unchanged.
 
 ---
 
-## Workspaces
+## Chooser
 
-**Purpose.** Per-window instances and project layouts both need a workspace identity; forcing the user to declare it is friction.
+The `--interactive` flag routes any choice through an external chooser script via a defined API.
 
-The current workspace is inferred from the shell's current working directory, so per-window instances and layouts auto-associate without explicit naming. Each instance is automatically tagged with the project it was launched or borrowed for, so lists can answer "which utilities belong to project-a?" — and "abandon project-a, reap its instances" becomes a natural operation. This is also the input for suggesting the right layouts automatically.
+### Contract
 
-The simplest implementation is a small script the utility runs to detect the workspace and then start the command.
+```
+tum-chooser <prompt> <items_file> <output_file>
+```
+
+- Reads items (one per line) from `items_file`.
+- Writes the selection (one line) to `output_file`.
+- Exit 0 means a selection was written; non-zero means cancelled (output file empty).
+- The chooser renders its own UI. In popup mode, tmux-borrow runs it inside `display-popup` with stdin and stdout redirected to the files — the popup PTY does not carry the caller's stdin or stdout, so files are the bridge.
+- The `@tum-chooser` tmux option selects the script (default `tum-chooser` on PATH). An fzf-based implementation ships as the reference; any script following the contract is a drop-in replacement.
+
+### Why files, not FIFOs
+
+The data is small and one-shot. Files persist for debugging; FIFOs offer no advantage for short-lived, bounded interaction and cannot be inspected after the fact.
+
+---
+
+## Status glyphs
+
+Two configurable glyphs, with defaults resembling tmuxake's:
+
+| Pane                      | Glyph                                                          | Meaning                                                 |
+| ---                       | ---                                                            | ---                                                     |
+| Host with borrowed things | `÷` (configurable via `@tum-host-glyph`)                       | This pane has utilities or layouts attached.            |
+| Borrowed pane             | `§` (configurable via `@tum-borrowed-glyph`) plus utility name | This is a borrowed utility.                             |
+| Orphan (host gone)        | `!` prefix                                                     | The host pane is dead; the utility is alive and parked. |
+
+- Surfaced in the tmux status bar and the bash prompt via `tum status`.
+
+---
+
+## Listings (`tum ls`)
+
+`tum ls` lists all utility panes across all sessions, queried from `list-panes -a`:
+
+| Column   | Source                                                         |
+| ---      | ---                                                            |
+| Utility  | `@tum-util`                                                    |
+| Layout   | `@tum-layout`                                                  |
+| Host     | `@tum-host` (session:pane, or `hidden`, `host gone`, `pushed`) |
+| Slot     | `@tum-slot`                                                    |
+| Geometry | `@tum-geometry`                                                |
+| State    | shown, hidden, pushed, or orphan                               |
+
+- Global view: any session can borrow; `tum ls` shows where every instance lives and what it is bound to.
+
+---
+
+## Orphan handling
+
+Lazy and manual, tmuxake-style. No proactive hooks on pane death.
+
+| Condition                | Detection                                     | Action                                                                               |
+| ---                      | ---                                           | ---                                                                                  |
+| Host dead, utility alive | `@tum-host` pane id is not in `list-panes -a` | Leave binding intact; mark `!`; show "host gone". User hides or re-borrows to clear. |
+| Utility dead (full-dead) | Pane is gone from `list-panes -a`             | Nothing to do — state died with the pane. Automatic.                                 |
+
+- `tum check` lists half-orphans for the user to act on.
+- No auto-return. Detection is not a hide action; the binding stays until the user decides.
 
 ---
 
 ## Implementation constraints
 
-**Purpose.** The project must stay maintainable, composable, and free of unnecessary dependencies — a set of small Unix-style tools, not a monolith.
-
-**How it could work.**
-
-- Small code base; many small utilities with narrow responsibilities and clear input/output contracts. No monolithic blob.
-- Bash is preferred. Perl is acceptable for short helpers. Python is not used in runtime code.
-- Keep dependencies limited and optional where possible (fzf is optional; `sqlite3` is required).
-- Use tmux-native commands for functionality tmux already provides. Do not reimplement pane splitting, resizing, focus, window creation, session switching, or standard navigation.
-- Every component must be independently testable.
-- All tmux interaction goes through one `tum-tmux` module wrapping `new-session`, `join-pane`, `move-window`, and the rest, so the rest of the code never calls `tmux` directly. tmux-version quirks, quoting, and ID verification then live in one place, and that boundary is the single mock target for tests.
-- All metadata read/write goes through one `tum-state` module (`list`/`get`/`put`/`delete`/`recover`), so transactions, locking, and schema rules are implemented once rather than re-implemented or missed in each command.
-- Integration tests run against a private tmux server socket (`tmux -L tum-test -f /dev/null`), never the user's default server, so the suite can create and destroy panes freely and stays deterministic.
+- Small code base; many small utilities with narrow responsibilities and clear input/output contracts. No monolith.
+- Bash preferred; Perl acceptable for short helpers. No Python in runtime code.
+- No sqlite, no external database. State is in tmux pane-scope options.
+- The chooser is an external script; fzf is one implementation, not a dependency of the core. The core works without any chooser installed (commands that need a chooser fall back to erroring or to a numbered list).
+- All tmux interaction goes through one `tum-tmux` module wrapping `new-session`, `join-pane`, `move-pane`, `move-window`, and the rest. The rest of the code never calls `tmux` directly. tmux-version quirks, quoting, and pane-id verification live in one place.
+- All state read/write goes through one `tum-state` module that wraps pane-scope option get, set, and scan, so the encoding rules are implemented once.
+- Before borrow, the `command` path is checked to exist and be executable, so a bad definition fails with a clear message instead of launching a pane that dies at once.
+- Bash completion completes commands, utility names, and layout names.
+- Integration tests run against a private tmux server socket (`tmux -L tum-test -f /dev/null`), never the user's default server.
