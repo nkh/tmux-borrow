@@ -14,10 +14,10 @@ tmux-borrow is a superset of tmuxake: the same hide/show/close flow, generalized
 
 Put your utility and layout definitions in `~/.config/tum/` (or wherever `XDG_CONFIG_HOME` points). Each utility is one file (`<name>.util`), each layout is one file (`<name>.layout`), flat `key:value`. The filename is the name.
 
-Open the config directory in `$EDITOR`:
+Open the config directory in `$EDITOR` directly:
 
 ```sh
-tum config edit
+$EDITOR ~/.config/tum/
 ```
 
 ## Define a utility
@@ -28,10 +28,9 @@ A utility file is flat `key:value`:
 command: htop
 tags: monitor
 slot: 1
-on_exit: wait
 ```
 
-Only `command` is required. `args`, `cwd`, `env`, `tags`, `slot`, and `on_exit` are optional.
+Only `command` is required. `args`, `cwd`, `env`, `tags`, and `slot` are optional. A utility runs until you close it (`tum close`); there is no exit-policy key.
 
 ## Borrow a utility
 
@@ -76,10 +75,10 @@ From a focused borrowed pane, `<prefix> H` with no slot toggles just that pane. 
 
 ## Close
 
-Close is `kill-pane` — the pane and all its state are gone, nothing to clean up:
+Close is `kill-pane` — the pane and all its state are gone, nothing to clean up. The keymap binds it to `t x`:
 
 ```
-<prefix> <close key>
+<prefix> t x
 ```
 
 It is context-aware: if you are focused on a borrowed pane, it closes that pane. If you are on the host with one borrowed thing, it closes that. With several, the chooser picks. No confirmation; close is immediate.
@@ -90,11 +89,12 @@ A layout groups several utilities. Define it in a `.layout` file:
 
 ```
 layout_id: dev
-members:
-  editor: anchor=host, side=right, size=60%
-  term:   anchor=host, side=bottom, size=20%
-  logs:   anchor=term, side=bottom, size=30%
+editor: anchor=host, side=right, size=60%
+term: anchor=host, side=bottom, size=20%
+logs: anchor=term, side=bottom, size=30%
 ```
+
+The file is flat `key:value` — `layout_id` is the only special key; every other line is a member (its key is the member name, its value is the placement). No `members:` wrapper, no indentation.
 
 Members may anchor to the host or to another member — `logs` anchors below `term`, so both sit on the bottom while `editor` takes the right.
 
@@ -140,7 +140,7 @@ The script reads items from a file, writes the selection to a file, exits 0 on s
 
 ## Status glyphs
 
-The tmux status bar (or your bash prompt) can show, at a glance, which panes are borrowed:
+The tmux status bar (via `tum status <pane_id>`) or your bash prompt (via `tum prompt`) can show, at a glance, which panes are borrowed:
 
 - `÷` on a host pane means it has utilities or layouts attached.
 - `§` on a borrowed pane means it is a utility (with its name).
@@ -153,7 +153,8 @@ Both glyphs are configurable.
 ```sh
 tum ls        # all utility panes across all sessions
 tum check     # list orphans (host dead, utility alive)
-tum status    # glyph string for the current pane
+tum status    # glyph string for the current pane (tmux status bar)
+tum prompt    # glyph snippet for the shell prompt (PS1)
 ```
 
 `tum ls` shows each instance's utility, layout, host (or `hidden`/`host gone`/`pushed`), slot, geometry, and state. Any session can borrow from the shared pool, so this is the global view.

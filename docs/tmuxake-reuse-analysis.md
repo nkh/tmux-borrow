@@ -50,7 +50,7 @@ tmux-borrow takes these tmuxake concepts and generalizes them.
 | tmuxake concept               | tmux-borrow extension                                                                                                           |
 | ---                           | ---                                                                                                                             |
 | One side-pane per root pane   | Multiple utilities and multiple layouts may attach to one host simultaneously.                                                  |
-| A side-pane is always a shell | A utility is any named command with a definition file (command, args, cwd, env, tags, slot, on_exit).                           |
+| A side-pane is always a shell | A utility is any named command with a definition file (command, args, cwd, env, tags, slot).                                    |
 | No grouping                   | Layouts group utilities; borrowing a layout borrows all members; members anchor to the host or to each other.                   |
 | One instance per root         | Multiple instances of one utility are allowed. Borrow modes (`--new`, `--existing`) control whether to create or reuse.         |
 | Window name encodes state     | tmux-borrow uses pane-scope `@tum-*` options instead — more robust than parsing a string, and they survive `move-pane` cleanly. |

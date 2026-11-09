@@ -2,7 +2,7 @@
 
 ## A shortcut-driven way to drive every `tum` command, grouped so it's memorizable.
 
-> **Scope.** This document defines the key-binding scheme for tmux-borrow. It is a thin layer over the CLI defined in `tmux-borrow-requirements.md`: every binding shells out to the same `tum` commands scripts use, so the keymap and the CLI can never drift apart. The requirements pin one shortcut directly — flip-flop on `H` — and leave the rest to this keymap. Where the keymap adds bindings, commands, or options not in the requirements, they are flagged as **keymap-proposed**; everything else mirrors the requirements exactly.
+> **Scope.** This document defines the key-binding scheme for tmux-borrow. It is a thin layer over the CLI defined in `tmux-borrow-requirements.md`: every binding shells out to the same `tum` commands scripts use, so the keymap and the CLI can never drift apart. The requirements pin one shortcut directly — flip-flop on `H` — and leave the rest to this keymap. The CLI commands (`tum flip`, `tum close`, `tum popup`, `tum cheatsheet`, `tum bindings tmux`, `tum prompt`) are requirements-explicit (see the requirements' Command summary); only the binding-generation options (`@tum-key-*`, `@tum-entry-mode`, `@tum-no-prefix-entry`) remain keymap-proposed.
 
 ---
 
@@ -67,25 +67,25 @@ If you find the double prefix (`C-b` then `t`) too heavy, you can bind a **no-pr
 
 Every binding, in one view. "Direct" = bound in the prefix table (no `t` leader); "Leaf" = fires immediately after the leader; "Group" = opens a sub-table for one more key; "Sub" = opens a sub-table that reads a slot.
 
-The "CLI" column shows the command each binding drives. Commands marked **(proposed)** are keymap-proposed names for actions the requirements describe but do not name (`flip`, `close`, `popup`, `cheatsheet`); the rest are requirements-explicit.
+The "CLI" column shows the command each binding drives. `tum flip`, `tum close`, `tum popup`, and `tum cheatsheet` are requirements-explicit commands (see the requirements' Command summary); `tum bindings tmux` is the keymap's generator, also requirements-explicit.
 
-| Key     | Type  | Action                                         | CLI                                |
-| ---     | ---   | ---                                            | ---                                |
-| `H`     | Sub   | Flip-flop (reads a slot) — direct, per req.    | `tum flip [<slot>]` **(proposed)** |
-| `t b`   | Leaf  | Borrow (interactive chooser)                   | `tum borrow --interactive`         |
-| `t B`   | Leaf  | Borrow new (always create, interactive)        | `tum borrow --new --interactive`   |
-| `t x`   | Leaf  | Close (context-aware kill-pane)                | `tum close` **(proposed)**         |
-| `t p`   | Leaf  | Push the focused borrowed pane onto the stack  | `tum push`                         |
-| `t P`   | Leaf  | Pop the top of the stack to the current host   | `tum pop`                          |
-| `t i`   | Leaf  | Import the current pane (anonymous, temporary) | `tum import`                       |
-| `t I`   | Leaf  | Import the current pane (named, saved to file) | `tum import` (prompts for name)    |
-| `t u`   | Leaf  | Open the popup (master action menu)            | `tum popup` **(proposed)**         |
-| `t ?`   | Leaf  | Cheatsheet overlay                             | `tum cheatsheet` **(proposed)**    |
-| `t l`   | Group | Layout family                                  | —                                  |
-| `t g`   | Group | Go / view (listings)                           | —                                  |
-| `t c`   | Group | Config family                                  | —                                  |
-| `t q`   | Leaf  | Cancel (back to root)                          | —                                  |
-| `t Esc` | Leaf  | Cancel (back to root)                          | —                                  |
+| Key     | Type  | Action                                         | CLI                                 |
+| ---     | ---   | ---                                            | ---                                 |
+| `H`     | Sub   | Flip-flop (reads a slot) — direct, per req.    | `tum flip [<slot>]`                 |
+| `t b`   | Leaf  | Borrow (interactive chooser)                   | `tum borrow --interactive`          |
+| `t B`   | Leaf  | Borrow new (always create, interactive)        | `tum borrow --new --interactive`    |
+| `t x`   | Leaf  | Close (context-aware kill-pane)                | `tum close`                         |
+| `t p`   | Leaf  | Push the focused borrowed pane onto the stack  | `tum push`                          |
+| `t P`   | Leaf  | Pop the top of the stack to the current host   | `tum pop`                           |
+| `t i`   | Leaf  | Import the current pane (anonymous, temporary) | `tum import`                        |
+| `t I`   | Leaf  | Import the current pane (named, saved to file) | `tum import <name>` (name prompted) |
+| `t u`   | Leaf  | Open the popup (master action menu)            | `tum popup`                         |
+| `t ?`   | Leaf  | Cheatsheet overlay                             | `tum cheatsheet`                    |
+| `t l`   | Group | Layout family                                  | —                                   |
+| `t g`   | Group | Go / view (listings)                           | —                                   |
+| `t c`   | Group | Config family                                  | —                                   |
+| `t q`   | Leaf  | Cancel (back to root)                          | —                                   |
+| `t Esc` | Leaf  | Cancel (back to root)                          | —                                   |
 
 ---
 
@@ -93,17 +93,17 @@ The "CLI" column shows the command each binding drives. Commands marked **(propo
 
 These are the daily reflexes. They fire directly off `t` and return you to the root table.
 
-| Key   | Does         | What you see                                                                                                                                  |
-| ---   | ---          | ---                                                                                                                                           |
-| `t b` | Borrow       | Chooser over all utilities and layouts (no-name mode). Pick one → pane attaches beside the active pane.                                       |
-| `t B` | Borrow new   | Same chooser, but always creates a fresh instance rather than reusing a hidden one (the `--new` mode).                                        |
-| `t x` | Close        | Context-aware `kill-pane`: from a borrowed pane kills it; from a host with one, kills that; with several, opens the chooser.                  |
-| `t p` | Push         | Detaches the focused borrowed pane onto the LIFO push stack (no host). From the host with several borrowed, opens the chooser.                |
-| `t P` | Pop          | Attaches the highest-`@tum-push-seq` pane to the current host at its recorded geometry. Consumes it from the stack.                           |
-| `t i` | Import anon  | Tags the current pane as a temporary utility (`@tum-source=imported-anon`). No file written; behaves like any utility.                        |
-| `t I` | Import named | Prompts for a name, captures command/args/cwd/env from `/proc/$pid/`, writes a `<name>.util` file (`@tum-source=imported-named`).             |
-| `t u` | Popup        | The full interactive menu. Every command reachable with arrows/enter — the catch-all for anything without a dedicated binding. **(proposed)** |
-| `t ?` | Cheatsheet   | A popup listing every key in this document, grouped — so you never have to leave tmux to remember. **(proposed)**                             |
+| Key   | Does         | What you see                                                                                                                      |
+| ---   | ---          | ---                                                                                                                               |
+| `t b` | Borrow       | Chooser over all utilities and layouts (no-name mode). Pick one → pane attaches beside the active pane.                           |
+| `t B` | Borrow new   | Same chooser, but always creates a fresh instance rather than reusing a hidden one (the `--new` mode).                            |
+| `t x` | Close        | Context-aware `kill-pane`: from a borrowed pane kills it; from a host with one, kills that; with several, opens the chooser.      |
+| `t p` | Push         | Detaches the focused borrowed pane onto the LIFO push stack (no host). From the host with several borrowed, opens the chooser.    |
+| `t P` | Pop          | Attaches the highest-`@tum-push-seq` pane to the current host at its recorded geometry. Consumes it from the stack.               |
+| `t i` | Import anon  | Tags the current pane as a temporary utility (`@tum-source=imported-anon`). No file written; behaves like any utility.            |
+| `t I` | Import named | Prompts for a name, captures command/args/cwd/env from `/proc/$pid/`, writes a `<name>.util` file (`@tum-source=imported-named`). |
+| `t u` | Popup        | The full interactive menu. Every command reachable with arrows/enter — the catch-all for anything without a dedicated binding.    |
+| `t ?` | Cheatsheet   | A popup listing every key in this document, grouped — so you never have to leave tmux to remember.                                |
 
 `t b` follows the requirements' default-mode resolution: an instance already bound to this host is reused; else a hidden instance is borrowed (chooser if several); else a fresh one is created. Close is immediate — no confirmation, mirroring tmuxake. Anonymous import is borrowable, hideable, and closeable like any utility, but is not saved; named import captures at max fidelity from `/proc/$pid/` and the resulting file is meant to be hand-edited.
 
@@ -244,26 +244,25 @@ C-b t c e        # opens ~/.config/tum/ in $EDITOR → create htop.util:
                  #   command: htop
                  #   tags: monitor
                  #   slot: 1
-                 #   on_exit: wait
 # save; htop is now borrowable by name
 ```
 
-The definition keys (`command`, `args`, `cwd`, `env`, `tags`, `slot`, `on_exit`) and the layout DSL are defined in the requirements; this keymap only opens the files for editing.
+The definition keys (`command`, `args`, `cwd`, `env`, `tags`, `slot`) and the layout DSL are defined in the requirements; this keymap only opens the files for editing.
 
 ---
 
 ## Popup and help
 
-| Key     | Does                                                                                         |
-| ---     | ---                                                                                          |
-| `t u`   | Popup — the full interactive menu. Every command reachable with arrows/enter. **(proposed)** |
-| `t ?`   | Cheatsheet overlay — every key in this doc, grouped, in a popup. **(proposed)**              |
-| `t q`   | Cancel from the leader or any sub-group; back to root, nothing changed.                      |
-| `t Esc` | Same as `t q`.                                                                               |
+| Key     | Does                                                                          |
+| ---     | ---                                                                           |
+| `t u`   | Popup — the full interactive menu. Every command reachable with arrows/enter. |
+| `t ?`   | Cheatsheet overlay — every key in this doc, grouped, in a popup.              |
+| `t q`   | Cancel from the leader or any sub-group; back to root, nothing changed.       |
+| `t Esc` | Same as `t q`.                                                                |
 
 Cancel is a hard guarantee: whether you're at the leader, inside a sub-table, or mid-prompt in a popup, `Esc`/`q` leaves tmux state exactly as it was. No half-moved panes, no partially-hidden slots.
 
-The popup (`t u`) and cheatsheet (`t ?`) are keymap-proposed conveniences. The popup is a TUI menu that delegates to the same CLI commands every binding uses — borrow, borrow new, flip-flop, close, push, pop, import, import named, ls, check, status, edit config. Anything doable in the popup is scriptable; a CLI fix fixes the UI too. If the popup is not implemented, `t ?` (cheatsheet) and the chooser still cover discovery.
+The popup (`t u`) and cheatsheet (`t ?`) are conveniences over the requirements' commands. The popup is a TUI menu that delegates to the same CLI commands every binding uses — borrow, borrow new, flip-flop, close, push, pop, import, import named, ls, check, status, edit config. Anything doable in the popup is scriptable; a CLI fix fixes the UI too. If the popup is not implemented, `t ?` (cheatsheet) and the chooser still cover discovery.
 
 ---
 
@@ -309,7 +308,7 @@ Every command in the requirements maps to at least one binding.
 | edit a layout file                | `t l e`                                           |
 | edit config dir                   | `t c e`                                           |
 | `--interactive` (chooser)         | every interactive binding passes it automatically |
-| `tum popup` / `tum cheatsheet`    | `t u` / `t ?` (keymap-proposed)                   |
+| `tum popup` / `tum cheatsheet`    | `t u` / `t ?`                                     |
 
 No requirements command is unreachable; no binding duplicates another's job. Borrowing a layout is covered by `t b` (the no-name chooser the requirements define shows utilities and layouts together), so there is no separate layout-borrow key.
 
@@ -364,7 +363,7 @@ These come straight from the requirements and are read by the `tum` runtime.
 | `@tum-chooser`        | `tum-chooser` | The chooser script on PATH (the `--interactive` backend).      |
 | `@tum-host-glyph`     | `÷`           | Glyph shown on a host pane with borrowed things attached.      |
 | `@tum-borrowed-glyph` | `§`           | Glyph shown on a borrowed pane (plus utility name).            |
-| `@tum-hidden-session` | (proposed)    | Name of the shared session where hidden and pushed panes park. |
+| `@tum-hidden-session` | `tum-hidden`  | Name of the shared session where hidden and pushed panes park. |
 
 Orphans — a host pane gone, utility pane alive — are marked with a `!` prefix in `tum ls` and `tum status`, per the requirements.
 
@@ -399,7 +398,7 @@ source-file ~/.config/tmux/tum-bindings.conf
 
 ### Generated fragment (illustrative)
 
-The real file is produced and validated by `tum bindings tmux` **(proposed)**. This shows the shape:
+The real file is produced and validated by `tum bindings tmux`. This shows the shape:
 
 ```sh
 # Generated by `tum bindings tmux` — do not edit by hand; set @tum-* options instead.
@@ -434,7 +433,7 @@ bind-key -T tum-root i \
     run-shell -b 'tum import' \;\
     switch-client -T root
 bind-key -T tum-root I \
-    display-popup -E 'tum import' \;\
+    display-popup -E 'read -p "utility name: " name && tum import "$name"' \;\
     switch-client -T root
 bind-key -T tum-root u \
     display-popup -E -w 80% -h 80% 'tum popup' \;\
@@ -539,13 +538,11 @@ A few mnemonic hooks that make the families stick:
 
 This keymap is a proposed design, built on the requirements. A few items are deliberately left as decisions for the implementation phases:
 
-| Open item                                                                           | Where it gets decided                                                     |
-| ---                                                                                 | ---                                                                       |
-| The `tum bindings tmux` generator and installer (keymap-proposed)                   | Phase 1 (CLI skeleton)                                                    |
-| Flip-flop focused-toggle terminator: `Enter` vs. `.` vs. a direct-fire `H`          | Phase 0; this doc uses `Enter` in the sub-table                           |
-| Whether `tum flip` and `tum close` are separate CLI commands or sub-flags of borrow | Phase 1 (CLI skeleton)                                                    |
-| Whether `tum popup` and `tum cheatsheet` ship at all (keymap-proposed)              | Phase 1; the chooser + dedicated keys cover the requirements without them |
-| Per-binding result feedback (`display-message` on `run-shell` actions)              | Phase 1                                                                   |
-| Default `@tum-entry-mode`: `auto_return` (safer) vs. `sticky` (chains actions)      | Phase 0; this doc recommends `auto_return`                                |
+| Open item                                                                      | Where it gets decided                           |
+| ---                                                                            | ---                                             |
+| The `tum bindings tmux` generator and installer                                | Phase 1 (CLI skeleton)                          |
+| Flip-flop focused-toggle terminator: `Enter` vs. `.` vs. a direct-fire `H`     | Phase 0; this doc uses `Enter` in the sub-table |
+| Per-binding result feedback (`display-message` on `run-shell` actions)         | Phase 1                                         |
+| Default `@tum-entry-mode`: `auto_return` (safer) vs. `sticky` (chains actions) | Phase 0; this doc recommends `auto_return`      |
 
 The principle behind every open item is the same: the keymap must stay a thin wrapper over the CLI, generated from tmux options, never colliding with tmux, and always cancellable. As long as those hold, the exact key choices are tunable without redesign.
