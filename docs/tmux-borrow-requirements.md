@@ -139,6 +139,7 @@ A complete layout file:
 
 ```
 layout_id: dev
+focus: host/name # optional; which member gets focus on borrow, host if missing
 editor: anchor=host, side=right, size=60%
 term: anchor=host, side=bottom, size=20%
 logs: anchor=term, side=bottom, size=30%
@@ -357,22 +358,22 @@ Lazy and manual, tmuxake-style. No proactive hooks on pane death.
 
 Every `tum` command, with its arguments. Behavior is defined in the sections above; this table is the index.
 
-| Command             | Arguments                   | Behavior                                                                                                                              |
-| ---                 | ---                         | ---                                                                                                                                   |
-| `tum borrow`        | `[<util or layout>]`, modes | Attach beside the current host pane; create first if needed. Modes: default, `--new`, `--existing`, `--tag <tag>`, no-name (chooser). |
-| `tum flip`          | `[<slot>]`, `--interactive` | Toggle a borrowed thing by slot, or the focused pane, or via the chooser.                                                             |
-| `tum close`         | (none — context-aware)      | `kill-pane` the focused borrowed pane, or the host's single borrowed thing, or chooser-pick among several.                            |
-| `tum push`          | (none)                      | Detach the focused borrowed pane onto the LIFO stack.                                                                                 |
-| `tum pop`           | (none)                      | Attach the top of the stack to the current host.                                                                                      |
-| `tum import`        | `[<name>]`                  | Adopt the current pane as a utility — anonymous (no name) or named (writes `<name>.util`).                                            |
-| `tum ls`            | (none)                      | List all utility panes across all sessions.                                                                                           |
-| `tum check`         | (none)                      | List orphans (host dead, utility alive).                                                                                              |
-| `tum status`        | `[<pane_id>]`               | Emit the glyph string for a pane (for the tmux status bar; tmux interpolates `#{pane_id}`).                                           |
-| `tum prompt`        | (none)                      | Emit the PS1 glyph snippet for the shell prompt.                                                                                      |
-| `tum popup`         | (none)                      | Open the full interactive menu (every command reachable).                                                                             |
-| `tum cheatsheet`    | (none)                      | Open a popup listing every key binding.                                                                                               |
-| `tum bindings tmux` | (none)                      | Generate the tmux `bind-key` fragment from the `@tum-*` options.                                                                      |
-| `tum-chooser`       | `<prompt> <items> <out>`    | The external chooser script (the `--interactive` backend); fixed contract, not a `tum` subcommand.                                    |
+| Command       | Arguments                   | Behavior                                                                                                                              |
+| ---           | ---                         | ---                                                                                                                                   |
+| borrow        | `[<util or layout>]`        | Attach beside the current host pane; create first if needed. Modes: default, `--new`, `--existing`, `--tag <tag>`, no-name (chooser). |
+| flip          | `[<slot>]`, `--interactive` | Toggle a borrowed thing by slot, or the focused pane, or via the chooser.                                                             |
+| close         | (none — context-aware)      | `kill-pane` the focused borrowed pane, or the host's single borrowed thing, or chooser-pick among several.                            |
+| push          | (none)                      | Detach the focused borrowed pane onto the LIFO stack.                                                                                 |
+| pop           | (none)                      | Attach the top of the stack to the current host.                                                                                      |
+| import        | `[<name>]`                  | Adopt the current pane as a utility — anonymous (no name) or named (writes `<name>.util`).                                            |
+| ls            | (none)                      | List all utility panes across all sessions.                                                                                           |
+| check         | (none)                      | List orphans (host dead, utility alive).                                                                                              |
+| status        | `[<pane_id>]`               | Emit the glyph string for a pane (for the tmux status bar; tmux interpolates `#{pane_id}`).                                           |
+| prompt        | (none)                      | Emit the PS1 glyph snippet for the shell prompt.                                                                                      |
+| popup         | (none)                      | Open the full interactive menu (every command reachable).                                                                             |
+| cheatsheet    | (none)                      | Open a popup listing every key binding.                                                                                               |
+| bindings tmux | (none)                      | Generate the tmux `bind-key` fragment from the `@tum-*` options.                                                                      |
+| tum-chooser   | `<prompt> <items> <out>`    | The external chooser script (the `--interactive` backend); fixed contract, not a `tum` subcommand.                                    |
 
 `tum popup`, `tum cheatsheet`, and `tum bindings tmux` are conveniences over the commands above; the keymap document defines the bindings they support.
 
