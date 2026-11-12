@@ -1,3 +1,7 @@
 *.swp
 *.swo
 
+# generated manpages — the markdown sources (man/*.md) are canonical and
+# tracked; the rendered roff (man/*.1, man/*.5) is produced by `make man`.
+man/*.1
+man/*.5

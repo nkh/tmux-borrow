@@ -1,0 +1,10 @@
+# examples/log-tail.util — a utility that needs a create-time argument.
+# `input: file` declares a placeholder; `{{file}}` in args is filled from the
+# prompt at create time (`tum new log-tail`). Re-borrowing never re-prompts.
+# Borrow it with:   tum new log-tail        # then type a path at the prompt
+
+command: tail
+args: -n 200 -f {{file}}
+input: file
+cwd: /var/log
+slot: l

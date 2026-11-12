@@ -1,0 +1,70 @@
+# examples/full-demo.util — a complete utility definition exercising EVERY field.
+#
+# A project log viewer: at create time it prompts for a log file, then tails it
+# from the project's var/log directory. Pager env vars default here but can be
+# overridden from the user's shell. Borrow it with:
+#
+#   tum new full-demo        # then type a log file name at the prompt
+#
+# Field reference (see docs/tmux-borrow-requirements.md, Definitions):
+#   command         (required) executable
+#   args            optional, may hold {{placeholder}} tokens
+#   cwd             optional, may hold {{placeholder}} tokens
+#   slot            optional, default slot key; unique within the host window
+#   input           optional, repeatable; one create-time prompt per line
+#   use-process-env optional; if set, live shell env overrides the file's env
+#   <any other key> optional; an environment variable for the launched process
+
+command: tail
+args: -n 500 -f {{logfile}}
+input: logfile
+cwd: ~/projects/acme/var/log
+slot: l
+use-process-env: yes
+
+# Environment keys — every non-special key:value line sets one env var.
+# Without use-process-env these win over the inherited shell environment.
+# With use-process-env: yes (above), a key that also exists in the live shell
+# takes its value from the shell instead — so these are defaults, overridable.
+PAGER: less
+LESS: -RiX
+LOG_DIR: ~/projects/acme/var/log
+
+# ----------------------------------------------------------------------------
+# ARGS TOKENIZATION — variants for you to decide (open spec item R3).
+#
+# Only ONE `args:` line is active above. The commented forms below are NOT
+# active; they show the edge cases the tokenization rule must define. Read
+# each, decide how the single args string should become an argv array, and
+# write the rule into docs/tmux-borrow-requirements.md (Safe argv).
+#
+# Candidate approaches to react to:
+#   A  shell-like split on whitespace, single/double quotes group (quotes
+#      removed), no variable/command expansion, no backslash escapes.
+#   B  same as A, but {{placeholders}} are expanded PER-TOKEN after splitting
+#      (a quoted placeholder keeps its value as one token even with spaces).
+#   C  one token per line — make `args` repeatable: `args: -n` / `args: 500`.
+#      No quoting ambiguity at all; verbose for long argument lists.
+#   D  JSON array — `args: ["-n","500","-f","{{logfile}}"]`. Unambiguous but
+#      breaks the flat key:value aesthetic and needs a JSON-ish parser.
+#
+# Edge cases the chosen rule must answer:
+#   args: -s foo                      # 2 tokens: -s, foo  (baseline)
+#   args: -n 500 -f {{logfile}}       # the active form above — placeholder as a token
+#   args: "-s foo bar"                # Q: 1 token (-s foo bar) or 3? are quotes literal?
+#   args: -s "foo bar"                # Q: 2 tokens (-s, foo bar) or 3 (-s, foo, bar)?
+#   args: -s 'foo bar'                # Q: do single quotes behave like double quotes?
+#   args: --msg=hello world           # Q: 1 token or 2? (space inside an =value)
+#   args: --path /my logs/file.log    # Q: 3 tokens, or is "/my logs" one path? (unquoted space)
+#   args: --db {{dbname}}             # Q: if dbname="a b" (with a space), 1 token or 2?
+#   args: -c 'echo "hi there"'        # Q: nested quotes — 2 tokens (-c, echo "hi there")?
+#   args: -flag\ with\ spaces         # Q: are backslash escapes supported? (rule A says no)
+#   args: --note="it's, a; test"      # Q: =, comma, semicolon, apostrophe inside quotes
+#   args:                             # Q: empty args — 0 tokens, or a parse error?
+#
+# The placeholder-substitution question (does {{x}} expand before or after
+# splitting?) matters most for rule A vs B: under A, `args: --db {{dbname}}`
+# with dbname="a b" yields tokens `--db`, `a`, `b` (3) — usually wrong; under
+# B it yields `--db`, `a b` (2) — usually right. Pick the rule that matches
+# how you expect users to write definitions.
+# ----------------------------------------------------------------------------

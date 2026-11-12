@@ -1,0 +1,6 @@
+# examples/simple.util — a minimal utility: a command and a slot.
+# Everything else is optional and defaults sensibly.
+# Borrow it with:   tum borrow simple
+
+command: htop
+slot: 1

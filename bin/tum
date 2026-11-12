@@ -1,0 +1,191 @@
+#!/usr/bin/env bash
+# bin/tum — tmux-borrow manager (single file).
+#
+# Foundation (steps 1.1–1.3): the case dispatcher, the help framework (short
+# help extracted from the manpage markdown), the tum_defs_* definition parser,
+# the tum_state_* field codec (Alternative A: pane title), and the _tm tmux
+# wrapper with its helpers. Command bodies (borrow/flip/push/…) land in later
+# phases; until then `tum <cmd>` reports not-implemented, but every
+# `tum <cmd> --help` works today.
+#
+# Sourceable: defining the functions below runs nothing. The final line
+# dispatches only when this file is executed directly.
+set -uo pipefail
+
+# repo root (for man/*.md lookups); honor an explicit override when installed
+_TUM_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/.." 2>/dev/null && pwd || printf '%s' "$PWD")"
+
+# ─── dispatcher & help ───────────────────────────────────────────────────────
+tum() {                                   # entry point / dispatcher
+  local cmd="${1:-}"; [[ $# -gt 0 ]] && shift
+  case "$cmd" in
+    borrow|new|flip|close|push|pop|import|ls|check|status|prompt|popup|cheatsheet)
+      if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then tum_help "$cmd"; return $?; fi
+      if declare -F "cmd_$cmd" >/dev/null; then "cmd_$cmd" "$@"
+      else printf 'tum %s: not implemented in this build phase\n' "$cmd" >&2; return 2; fi ;;
+    -h|--help|"") tum_help_default ;;
+    *) printf "tum: unknown command '%s' (try 'tum --help')\n" "$cmd" >&2; return 2 ;;
+  esac
+}
+
+_tum_manpath() {                          # _tum_manpath <basename> -> path under man/
+  if [[ -n "${TUM_MAN_DIR:-}" && -f "${TUM_MAN_DIR}/$1" ]]; then printf '%s/%s\n' "$TUM_MAN_DIR" "$1"
+  else printf '%s/man/%s\n' "$_TUM_ROOT" "$1"; fi
+}
+
+tum_help_default() {                      # `tum` / `tum --help` -> command index
+  local md out line
+  md="$(_tum_manpath tum.1.md)"
+  out=""
+  if [[ -f "$md" ]]; then
+    # Pull each `**tum <cmd>**` bullet (and its first description line) out of
+    # the COMMANDS section. A bullet may name two commands (`push` / `pop`).
+    out="$(awk '
+      function emit(c,d){ if(c!="" && !(c in s)){ s[c]=1; printf "tum %-11s %s\n", c, d } }
+      /^## COMMANDS/{ inc=1; next }  /^## / && inc { inc=0 }
+      inc && /^- /{ b=$0; getline d; sub(/^[[:space:]]+/,"",d)
+        n=split(b,p,/\*\*tum /); for(i=2;i<=n;i++){ c=p[i]; sub(/\*\*.*/,"",c); emit(c,d) } }
+    ' "$md")"
+  fi
+  if [[ -z "$out" ]]; then
+    out='tum borrow     attach a utility beside the host
+tum new        create an instance owned by this host
+tum flip       hide/show a borrowed thing
+tum close      kill the focused borrowed pane
+tum push       detach a borrowed pane onto the stack
+tum pop        reattach the top of the stack
+tum import     make the current pane a temporary utility
+tum ls         list every utility pane
+tum check      list orphans
+tum status     emit status-bar glyphs
+tum prompt     emit PS1 glyphs
+tum popup      open a command menu
+tum cheatsheet open a key-binding cheatsheet'
+  fi
+  printf 'tum — borrow, reuse, and flip-flop utility panes inside tmux\n\n'
+  printf '%s\n' "$out"
+  printf '\nRun: tum <command> --help   for a synopsis\n'
+}
+
+tum_help() {                              # tum_help <cmd> -> SYNOPSIS + EXAMPLES
+  local cmd="$1" md
+  md="$(_tum_manpath "tum-$cmd.1.md")"
+  if [[ -f "$md" ]]; then
+    awk '
+      /^## SYNOPSIS/{ s=1; print "SYNOPSIS"; next }
+      /^## EXAMPLES/{ s=2; print ""; print "EXAMPLES"; next }
+      /^## /{ s=0 }
+      s==1||s==2 { if($0 ~ /^```$/) next; print }
+    ' "$md"
+  else
+    printf 'tum %s — (no manpage yet; see man/tum-%s.1.md)\n' "$cmd" "$cmd"
+  fi
+}
+
+# ─── defs: flat key:value .util/.layout parser ───────────────────────────────
+_TUM_DEF_SPECIAL=(command args cwd slot input use-process-env)
+_tum_defs_is_special() { local k="$1" s; for s in "${_TUM_DEF_SPECIAL[@]}"; do [[ $k == "$s" ]] && return 0; done; return 1; }
+
+tum_defs_parse() {                        # tum_defs_parse <file> -> parsed rep on stdout
+  local file="$1" raw key value
+  [[ -f "$file" ]] || { echo "tum_defs_parse: no such file: $file" >&2; return 1; }
+  while IFS= read -r raw || [[ -n "$raw" ]]; do
+    [[ $raw =~ ^[[:space:]]*$ ]] && continue
+    [[ $raw =~ ^[[:space:]]*# ]] && continue            # full-line comment
+    raw="${raw%%[[:space:]]#*}"                          # strip inline (# preceded by ws)
+    raw="${raw%"${raw##*[![:space:]]}"}"                 # rstrip
+    [[ $raw =~ ^[[:space:]]*$ ]] && continue
+    key="${raw%%:*}"; value="${raw#*:}"                  # split on first colon
+    key="${key#"${key%%[![:space:]]*}"}"                 # lstrip key
+    value="${value#"${value%%[![:space:]]*}"}"           # lstrip value
+    [[ -z $key ]] && continue
+    if _tum_defs_is_special "$key"; then printf 'special %s=%s\n' "$key" "$value"
+    else printf 'env %s=%s\n' "$key" "$value"; fi
+  done < "$file"
+}
+
+tum_defs_get() {                          # tum_defs_get <field>  (parsed rep on stdin)
+  local field="$1" line
+  while IFS= read -r line; do
+    case "$line" in
+      "special $field="*) printf '%s\n' "${line#special $field=}"; return 0 ;;
+      "env $field="*)     printf '%s\n' "${line#env $field=}";     return 0 ;;
+    esac
+  done
+  return 1
+}
+
+tum_defs_env_keys() {                     # env key names, one per line (stdin: parsed rep)
+  local line k
+  while IFS= read -r line; do
+    [[ $line == "env "* ]] || continue
+    k="${line#env }"; printf '%s\n' "${k%%=*}"
+  done
+}
+
+tum_defs_inputs() {                       # input names in declaration order (stdin)
+  local line
+  while IFS= read -r line; do
+    [[ $line == "special input="* ]] && printf '%s\n' "${line#special input=}"
+  done
+}
+
+tum_defs_count_special() { local n=0 l; while IFS= read -r l; do [[ $l == "special "* ]] && n=$((n+1)); done; printf '%d\n' "$n"; }
+tum_defs_count_env()     { local n=0 l; while IFS= read -r l; do [[ $l == "env "* ]]     && n=$((n+1)); done; printf '%d\n' "$n"; }
+
+# ─── state: tum: field codec (Alternative A — pane title) ─────────────────────
+# Every managed pane carries: tum:util=..;host=..;home=..;slot=..;geom=..;src=..;lay=..;push=..
+_TUM_STATE_FIELDS=(util host home slot geom src lay push)
+
+tum_state_has_prefix() {                  # tum_state_has_prefix <pane> -> 0 if managed
+  local title; title="$(_tm display-message -p -t "$1" '#{pane_title}' 2>/dev/null)"
+  [[ "$title" == tum:* ]]
+}
+
+tum_state_get() {                         # tum_state_get <pane> <field> -> value
+  local pane="$1" field="$2" title pair k v
+  title="$(_tm display-message -p -t "$pane" '#{pane_title}' 2>/dev/null)"
+  [[ "$title" == tum:* ]] || return 1
+  IFS=';' read -ra pair <<<"${title#tum:}"
+  for pair in "${pair[@]}"; do
+    k="${pair%%=*}"; v="${pair#*=}"
+    [[ "$k" == "$field" ]] && { printf '%s\n' "$v"; return 0; }
+  done
+  return 1
+}
+
+tum_state_set() {                         # tum_state_set <pane> <field> <value>
+  local pane="$1" field="$2" value="$3" title pair k f first
+  local -A cur=()
+  title="$(_tm display-message -p -t "$pane" '#{pane_title}' 2>/dev/null)"
+  if [[ "$title" == tum:* ]]; then
+    IFS=';' read -ra pair <<<"${title#tum:}"
+    for pair in "${pair[@]}"; do k="${pair%%=*}"; cur["$k"]="${pair#*=}"; done
+  fi
+  cur["$field"]="$value"
+  first=1
+  for f in "${_TUM_STATE_FIELDS[@]}"; do
+    if [[ $first -eq 1 ]]; then printf -v title 'tum:%s=%s' "$f" "${cur[$f]:-}"; first=0
+    else printf -v title '%s;%s=%s' "$title" "$f" "${cur[$f]:-}"; fi
+  done
+  _tm select-pane -t "$pane" -T "$title"
+}
+
+tum_target() {                            # resolver (step 3.2); stub for now
+  echo "tum_target: not implemented until step 3.2" >&2; return 2
+}
+
+# ─── _tm: tmux wrapper (honors TUM_SOCKET / TUM_TMUX) ─────────────────────────
+_tm() {
+  local bin="${TUM_TMUX:-tmux}" sock="${TUM_SOCKET:-}"
+  if [[ -n "$sock" ]]; then "$bin" -L "$sock" -f /dev/null "$@"; else "$bin" "$@"; fi
+}
+_tm_split() { local t="$1" s="${2:-h}"; _tm split-window "-$s" -F '#{pane_id}' -P -d -t "$t"; }   # -> new pane id (%N)
+_tm_join()  { _tm join-pane -s "$1" -t "$2" -d; }                                  # join src into dst
+_tm_move()  { _tm move-pane -s "$1" -t "$2" -d; }                                  # move pane to dst
+_tm_kill()  { _tm kill-pane -t "$1"; }
+_tm_list()  { local fmt="${1:-#{pane_id}}"; _tm list-panes -a -F "$fmt"; }
+_tm_popup() { _tm display-popup "$@"; }                                            # tmux >= 3.2
+
+# ─── entry: dispatch only when executed directly (safe to source) ─────────────
+if [[ "${BASH_SOURCE[0]:-}" == "${0:-}" ]]; then tum "$@"; fi
